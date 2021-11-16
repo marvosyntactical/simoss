@@ -25,9 +25,10 @@ using namespace std;
 // std includes
 #include <iostream>
 #include <math.h>
+#include <random>
 
 #include "util/arcball.h"
-#include "pso.h"
+// #include "pso.h"
 
 #if defined(__APPLE__) || defined(MACOSX)
 #include <GLUT/glut.h>
@@ -65,11 +66,12 @@ static const GLfloat back_color[] = {0.0,0.0,1.0,0.5};
 static const GLfloat front_color[] = {1.0,1.0,0.1,0.5 };
 static const GLfloat front_triangle_color[] = { 0.8,0.8,0.9,0.9 };
 static const GLfloat back_triangle_color[] = { 1.0,1.0,1.0,0.9 };
-static const GLfloat inner_sphere_color[] = { 0.7,0.7,0.99,1.0 };
+static const GLfloat prtcl_sphere_color[] = { 0.7,0.7,0.99,1.0 };
 static const GLfloat outer_sphere_color[] = { 0.0,1.0,0.0,1.0 };
 static const GLfloat semi_transparent_back_color[] = { 0.0,0.0,1.0,0.5};
 static const GLfloat semi_transparent_front_color[] = { 1.0,0.0,0.0,0.5 };
 
+static const int N_PARTICLES = 10;
 /* begin function plot parameter setup */
 static const int DIMS = 2;
 const GLfloat grid_size = 20.0f;
@@ -97,7 +99,7 @@ GLfloat zs[num_tiles_x + 1][num_tiles_y + 1]; // holds z value for each grid ver
 void draw_fn();
 void draw_light();
 void draw_coordinate_system( float unit );
-void draw_objects();
+void draw_particles();
 void display();
 void reshape( GLint width, GLint height );
 void keyboard( GLubyte key, GLint x, GLint y );
@@ -107,6 +109,167 @@ void init();
 int main( int argc, char** argv );
 void set_zs();
 GLfloat loss_fn (GLfloat X[DIMS]);
+
+
+// TODO put this class in a separate file again, current problem:
+// * make file command includes -c, which avoids linking, so only one file can be provided
+// * if -c is omitted, glut raises errors
+template <const int N, const int D>
+class PSO // Particle Swarm Optimization
+{
+	// N: number of particles; D: Dimensionality of search space; 
+	// F: (loss) function mapping from R^D -> R; should accept D element float array, return 1 float
+	// DIST: distribution object, such as std::uniform_real_distribution(0.0,1.0)
+	// initialization: initialization string; see PSO::init_pos
+	private:
+		// declarations
+		float* lower; // D-element array containing lower bounds of hyperrectangular search region
+		float* upper; // D-element array containing lower bounds of hyperrectangular search region
+		float** x; // position array: N x D
+		float** v; // velocity array: N x D
+		float* z; // function value array: N
+		float c1; // personal best hyperparameter
+		float c2; // global best hyperparameter
+		float* gbest; // global best array: D + 1 (last element is function value)
+		float** pbests; // local best array: N x (D + 1) (last element is function value)
+		float inertia;
+		mt19937 generator; // mersenne prime based PRNG
+        char* initialization;
+        uniform_real_distribution<float> dist;
+        
+		//void init_gen();
+		//void init_pos();
+		//void update_pos();
+		//void update_bests();
+
+		// generator init function
+		void init_gen() {
+		    random_device rd;
+		    mt19937 generator(rd());
+		    this->generator = generator;
+		}
+
+		void init_pos() {
+		    // randomly initialize particles
+		    if (initialization == "random") {
+			// spawn particles randomly in entire rectangular grid area;
+			for (int dim = 0; dim < D; dim++) {
+			    uniform_real_distribution<float> init_dist_d(lower[dim], upper[dim]);
+			    for (int i = 0; i < N; i++) {
+                    x[i][dim] = init_dist_d(generator);
+			    }
+			}
+			
+		    } else if (initialization == "center") {
+			// spawn particles randomly on unit sphere around center
+			// TODO
+			cout << "not implemented: center spawning" << endl;
+			exit(1);
+		    } else {
+			cout << "Allowed values of initialization are 'random', 'center'. Got " << initialization << endl;
+			exit(1);
+		    }
+		}
+
+		void update_bests() {
+		    // TODO define different topologies here
+            float zi;
+            float* x_i[D];
+		    for (int i = 0; i < N; i++) {
+                x_i = x[i];
+                // TODO re-add loss_fn as parameter
+                zi = loss_fn(x_i);
+                z[i] = zi;
+                // TODO make different tie-breaking schemes such as keeping multiple bests
+                // update global best if improved
+                if (zi < gbest[D]) {
+                    for (int dim = 0; dim < D; dim++) {
+                    gbest[dim] = x_i[dim];
+                    }
+                    gbest[D] = zi;
+                }
+                // update personal best if improved
+                if (zi < pbests[i][D]) {
+                    for (int dim = 0; dim < D; dim++) {
+                    pbests[i][dim] = x_i[dim];
+                    }
+                    pbests[i][D] = zi;
+                }
+
+		    }
+		}
+
+		// advance system one step
+		void update_pos() {
+		    // update position and velocity of each particle
+		    for (int i = 0; i < N; i++) {
+			// retrieve old position and velocity
+			float v_i[D] = v[i];
+			float x_i[D] = x[i];
+
+			// calculate new velocity and add it to current pos
+			for (int dim = 0; dim < D; dim++) {
+			    // sample from given distribution
+			    float r1 = this->dist(generator);
+			    float r2 = this->dist(generator);
+
+			    float x_i_d = x_i[dim];
+			    float v_i_d = inertia * v_i[dim] + c1 * r1 * (pbests[i][dim] - x_i_d) + c2 * r2 * (gbest[dim] - x_i_d);
+
+			    v[i][dim] = v_i_d;
+			    x[i][dim] = x_i_d + v_i_d;
+			}
+		    }
+		}
+	public:
+		// constructor
+        PSO(){}
+        
+		void init(float *lower_bounds, float *upper_bounds, float c1, float c2, char* initialization) {
+            uniform_real_distribution<float> dist(.0, 1.);
+            this->initialization = initialization;
+
+		    float infinity = 3.40282e+038;
+		    init_gen();
+
+		    lower = new float[D];
+		    upper = new float[D];
+
+		    x = new float*[N];
+		    v = new float*[N];
+            pbests = new float*[N];
+
+		    for (int dim = 0; dim < D; dim++) {
+                lower[dim] = lower_bounds[dim];
+                upper[dim] = upper_bounds[dim];
+		    }
+
+		    for (int i = 0; i < N; i++) {
+                x[i] = new float[D];
+                v[i] = new float[D];
+                pbests[i] = new float[D+1];
+                pbests[i][D] = infinity;
+		    }
+            gbest = new float[D+1];
+		    gbest[D] = infinity;
+		    init_pos();
+		}
+        float** get_pos() {
+            return this->x;
+        }
+
+		void step() {
+		    // before particles are updated; set global best (and local best based on topology)
+		    // using current positions
+		    update_bests();
+		    // update position and velocity of each particle
+		    update_pos();
+		}
+};
+
+PSO<N_PARTICLES, DIMS> optimizer;
+
+/* function definitions */
 
 GLfloat loss_fn (GLfloat X[DIMS]) {
     GLfloat x = X[0];
@@ -126,8 +289,6 @@ GLfloat loss_fn (GLfloat X[DIMS]) {
 
     return 0.0;
 }
-
-/* function definitions */
 
 void set_zs() {
     // get loss values at vertices
@@ -302,52 +463,30 @@ void display()
 
   draw_coordinate_system(1.0f);
   draw_light();
-  draw_objects();
   draw_fn();
+  float pos[N_PARTICLES][DIMS+1] = optimizer.get_pos();
+  draw_particles(pos);
 
   glutSwapBuffers();
    
 }
 
-
-
-void draw_objects()
+template <const int N, const int D>
+void draw_particles(float particle_positions[N][D+1])
 {
   GLUquadricObj *qobj = gluNewQuadric();
+  glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, prtcl_sphere_color);
+  float* x_i;
 
-  //glPolygonMode(GL_BACK, GL_FILL);
-  //glPolygonMode(GL_FRONT, GL_FILL);
-  //glMaterialfv(GL_BACK, GL_AMBIENT_AND_DIFFUSE, back_color);
-  //glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, front_color);
+  for (int i = 0; i < N_PARTICLES; i++) {
+      x_i = particle_positions[i];
 
-  // blue triangle
-  // glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE, front_triangle_color);
-  // glMaterialfv(GL_BACK, GL_AMBIENT_AND_DIFFUSE, back_triangle_color);
-  // glBegin(GL_TRIANGLES);
-  // glNormal3f(0.0,0.0,-1.0);
-  // glVertex3f(3.0,0.0,0.0);
-  // glVertex3f(0.0,0.0,0.0);
-  // glVertex3f(0.0,3.0,0.0);
-  // glEnd();
-  // glBegin(GL_TRIANGLES);
-  // glNormal3f(0.0,0.0,-1.0);
-  // glVertex3f(6.0,0.0,0.0);
-  // glVertex3f(3.0,0.0,0.0);
-  // glVertex3f(9.0,3.0,0.0);
-  // glEnd();
+      glPushMatrix();
+      glTranslatef(x_i[0], x_i[1], x_i[2]);
+      gluSphere(qobj,0.5,50,50);
+      glPopMatrix();
 
-
-
-  // inner sphere
-  glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, inner_sphere_color);
-  glPushMatrix();
-  glTranslatef(1.0,1.0,1.0);
-  gluSphere(qobj,0.1,50,50);
-  glPopMatrix();
-
-
-  // Utah teapot available
-  //glutSolidTeapot(4.0);
+  }
 }
 
 
@@ -372,6 +511,8 @@ void keyboard( GLubyte key, GLint x, GLint y )
   // just implemented the fast exit functionality
   switch(key)
   {
+  case ' ':
+      optimizer.step();
   case 'q':
   case 'Q':
   case KEY_ESC:
@@ -393,9 +534,9 @@ void mouse( int button, int state, int x, int y )
         // set use of arcball to true 
         arcball_on = true;
         // store current mouse position
-            arcball.set_cur( x, y );
+        arcball.set_cur( x, y );
         // and begin drag of ball
-            arcball.begin_drag();
+        arcball.begin_drag();
         // store y values for zooming
         last_y = cur_y = y;
     }
@@ -482,6 +623,12 @@ int main( int argc, char** argv )
   glutMotionFunc( motion );
 
   set_zs();
+
+  // initialize PSO
+  float lower_bounds[DIMS] = {Xmin[0], Ymin[1]};
+  float upper_bounds[DIMS] = {Xmax[0], Ymax[1]};
+
+  optimizer.init(lower_bounds, upper_bounds, 2, 2, "random")
   
   glutMainLoop();
   return 0;

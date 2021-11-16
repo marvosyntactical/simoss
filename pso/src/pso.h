@@ -33,7 +33,8 @@ class PSO // Particle Swarm Optimization
 		// generator init function
 		void init_gen() {
 		    random_device rd;
-		    generator = gen(rd());
+		    mt19937 generator(rd());
+		    this->generator = generator;
 		}
 
 		void init_pos() {
