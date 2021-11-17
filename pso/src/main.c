@@ -26,6 +26,7 @@ using namespace std;
 #include <iostream>
 #include <math.h>
 #include <random>
+#include <string>
 
 #include "util/arcball.h"
 // #include "pso.h"
@@ -71,7 +72,6 @@ static const GLfloat outer_sphere_color[] = { 0.0,1.0,0.0,1.0 };
 static const GLfloat semi_transparent_back_color[] = { 0.0,0.0,1.0,0.5};
 static const GLfloat semi_transparent_front_color[] = { 1.0,0.0,0.0,0.5 };
 
-static const int N_PARTICLES = 10;
 /* begin function plot parameter setup */
 static const int DIMS = 2;
 const GLfloat grid_size = 20.0f;
@@ -93,6 +93,10 @@ const int num_tiles_y = (Ymax[1] - Ymin[1])/tile_width_y;
 // }
 GLfloat zs[num_tiles_x + 1][num_tiles_y + 1]; // holds z value for each grid vertex
 /* end function plot parameter setup */
+
+// PSO variables
+static const int N_PARTICLES = 10;
+float positions[N_PARTICLES][DIMS+1];
 
 
 // function prototypes
@@ -134,7 +138,7 @@ class PSO // Particle Swarm Optimization
 		float** pbests; // local best array: N x (D + 1) (last element is function value)
 		float inertia;
 		mt19937 generator; // mersenne prime based PRNG
-        char* initialization;
+        string initialization;
         uniform_real_distribution<float> dist;
         
 		//void init_gen();
@@ -152,29 +156,31 @@ class PSO // Particle Swarm Optimization
 		void init_pos() {
 		    // randomly initialize particles
 		    if (initialization == "random") {
-			// spawn particles randomly in entire rectangular grid area;
-			for (int dim = 0; dim < D; dim++) {
-			    uniform_real_distribution<float> init_dist_d(lower[dim], upper[dim]);
-			    for (int i = 0; i < N; i++) {
-                    x[i][dim] = init_dist_d(generator);
-			    }
-			}
-			
+                // spawn particles randomly in entire rectangular grid area;
+                for (int dim = 0; dim < D; dim++) {
+                    uniform_real_distribution<float> init_dist_d(lower[dim], upper[dim]);
+                    for (int i = 0; i < N; i++) {
+                        x[i][dim] = init_dist_d(generator);
+                    }
+                }
+                for (int i = 0; i < N; i++) {
+                    z[i] = loss_fn(x[i]);
+                }
 		    } else if (initialization == "center") {
-			// spawn particles randomly on unit sphere around center
-			// TODO
-			cout << "not implemented: center spawning" << endl;
-			exit(1);
+                // spawn particles randomly on unit sphere around center
+                // TODO
+                cout << "not implemented: center spawning" << endl;
+                exit(1);
 		    } else {
-			cout << "Allowed values of initialization are 'random', 'center'. Got " << initialization << endl;
-			exit(1);
-		    }
-		}
+                cout << "Allowed values of initialization are 'random', 'center'. Got " << initialization << endl;
+                exit(1);
+            }
+        }
 
 		void update_bests() {
 		    // TODO define different topologies here
             float zi;
-            float* x_i[D];
+            float* x_i;
 		    for (int i = 0; i < N; i++) {
                 x_i = x[i];
                 // TODO re-add loss_fn as parameter
@@ -203,29 +209,25 @@ class PSO // Particle Swarm Optimization
 		void update_pos() {
 		    // update position and velocity of each particle
 		    for (int i = 0; i < N; i++) {
-			// retrieve old position and velocity
-			float v_i[D] = v[i];
-			float x_i[D] = x[i];
+                // calculate new velocity and add it to current pos
+                for (int dim = 0; dim < D; dim++) {
+                    // sample from given distribution
+                    float r1 = this->dist(generator);
+                    float r2 = this->dist(generator);
 
-			// calculate new velocity and add it to current pos
-			for (int dim = 0; dim < D; dim++) {
-			    // sample from given distribution
-			    float r1 = this->dist(generator);
-			    float r2 = this->dist(generator);
+                    float x_i_d = x[i][dim];
+                    float v_i_d = inertia * v[i][dim] + c1 * r1 * (pbests[i][dim] - x_i_d) + c2 * r2 * (gbest[dim] - x_i_d);
 
-			    float x_i_d = x_i[dim];
-			    float v_i_d = inertia * v_i[dim] + c1 * r1 * (pbests[i][dim] - x_i_d) + c2 * r2 * (gbest[dim] - x_i_d);
-
-			    v[i][dim] = v_i_d;
-			    x[i][dim] = x_i_d + v_i_d;
-			}
+                    v[i][dim] = v_i_d;
+                    x[i][dim] = x_i_d + v_i_d;
+                }
 		    }
 		}
 	public:
 		// constructor
         PSO(){}
         
-		void init(float *lower_bounds, float *upper_bounds, float c1, float c2, char* initialization) {
+		void init(float *lower_bounds, float *upper_bounds, float c1, float c2, string initialization) {
             uniform_real_distribution<float> dist(.0, 1.);
             this->initialization = initialization;
 
@@ -238,6 +240,8 @@ class PSO // Particle Swarm Optimization
 		    x = new float*[N];
 		    v = new float*[N];
             pbests = new float*[N];
+
+            z = new float[N];
 
 		    for (int dim = 0; dim < D; dim++) {
                 lower[dim] = lower_bounds[dim];
@@ -254,8 +258,16 @@ class PSO // Particle Swarm Optimization
 		    gbest[D] = infinity;
 		    init_pos();
 		}
-        float** get_pos() {
-            return this->x;
+        void write_pos() {
+            // unecessary; TODO define x's size at declaration and use that
+            for (int i=0; i < N; i++) {
+                int dim;
+                for (dim=0; dim < D; dim++) {
+                    positions[i][dim] = x[i][dim];
+                }
+                positions[i][dim] = z[i];
+            }
+            
         }
 
 		void step() {
@@ -452,34 +464,14 @@ void draw_coordinate_system(float unit)
 }
 
 
-void display()
-{
-  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-  glLoadIdentity();
-  gluLookAt(0, 0, 8 + zoomValue, 0, 0, 0, 0, 1, 0);
-
-  // multiply current matrix with arcball matrix
-  glMultMatrixf(arcball.get() );
-
-  draw_coordinate_system(1.0f);
-  draw_light();
-  draw_fn();
-  float pos[N_PARTICLES][DIMS+1] = optimizer.get_pos();
-  draw_particles(pos);
-
-  glutSwapBuffers();
-   
-}
-
-template <const int N, const int D>
-void draw_particles(float particle_positions[N][D+1])
+void draw_particles()
 {
   GLUquadricObj *qobj = gluNewQuadric();
   glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, prtcl_sphere_color);
   float* x_i;
 
   for (int i = 0; i < N_PARTICLES; i++) {
-      x_i = particle_positions[i];
+      x_i = positions[i];
 
       glPushMatrix();
       glTranslatef(x_i[0], x_i[1], x_i[2]);
@@ -487,6 +479,23 @@ void draw_particles(float particle_positions[N][D+1])
       glPopMatrix();
 
   }
+}
+
+void display()
+{
+  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+  glLoadIdentity();
+  gluLookAt(0, 0, 8 + zoomValue, 0, 0, 0, 0, 1, 0);
+
+  // multiply current matrix with arcball matrix
+  glMultMatrixf(arcball.get());
+
+  draw_coordinate_system(1.0f);
+  draw_light();
+  draw_fn();
+  optimizer.write_pos();
+  draw_particles();
+  glutSwapBuffers();
 }
 
 
@@ -500,7 +509,7 @@ void reshape( GLint width, GLint height )
   glLoadIdentity();
   gluPerspective( 45, 1.0 * width / height, 1, 1000 );
    
-  glViewport( 0, 0, width, height );
+  glViewport( 0, 0, width, height);
 
   glMatrixMode(GL_MODELVIEW);
   glLoadIdentity();
@@ -628,7 +637,8 @@ int main( int argc, char** argv )
   float lower_bounds[DIMS] = {Xmin[0], Ymin[1]};
   float upper_bounds[DIMS] = {Xmax[0], Ymax[1]};
 
-  optimizer.init(lower_bounds, upper_bounds, 2, 2, "random")
+  string initialization = "random";
+  optimizer.init(lower_bounds, upper_bounds, 2, 2, initialization);
   
   glutMainLoop();
   return 0;
