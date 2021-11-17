@@ -40,7 +40,7 @@ using namespace std;
 #define KEY_ESC 27
 
 
-const char* funcName = "wellblech";
+const char* funcName = "abscos";
 
 // global variables for handling the arcball
 
@@ -65,8 +65,8 @@ static gl::ArcBall arcball;
 // initialize some colors
 static const GLfloat back_color[] = {0.0,0.0,1.0,0.5};
 static const GLfloat front_color[] = {1.0,1.0,0.1,0.5 };
-static const GLfloat front_triangle_color[] = { 0.8,0.8,0.9,0.9 };
-static const GLfloat back_triangle_color[] = { 1.0,1.0,1.0,0.9 };
+static const GLfloat front_triangle_color[] = { 0.4,0.4,0.45,0.8 };
+static const GLfloat back_triangle_color[] = { 0.1,0.1,0.15,0.4 };
 static const GLfloat prtcl_sphere_color[] = { 0.7,0.7,0.99,1.0 };
 static const GLfloat outer_sphere_color[] = { 0.0,1.0,0.0,1.0 };
 static const GLfloat semi_transparent_back_color[] = { 0.0,0.0,1.0,0.5};
@@ -141,6 +141,17 @@ class PSO // Particle Swarm Optimization
         string initialization;
         uniform_real_distribution<float> dist;
 
+        // room to calculate with
+        float r1;
+        float r2;
+        float x_i_d;
+        float prev;
+        float pers;
+        float glob;
+        float v_i_d;
+        float zi;
+        float* x_i;
+
 		// generator init function
 		void init_gen() {
 		    random_device rd;
@@ -155,6 +166,7 @@ class PSO // Particle Swarm Optimization
                 }
             }
         }
+
 		void init_pos() {
 		    // randomly initialize particles
 		    if (initialization == "random") {
@@ -181,8 +193,6 @@ class PSO // Particle Swarm Optimization
 
 		void update_bests() {
 		    // TODO define different topologies here
-            float zi;
-            float* x_i;
 		    for (int i = 0; i < N; i++) {
                 x_i = x[i];
                 // TODO re-add loss_fn as parameter
@@ -215,15 +225,15 @@ class PSO // Particle Swarm Optimization
                 for (int dim = 0; dim < D; dim++) {
                     // sample from given distribution
                     // TODO fix generator not workin
-                    float r1 = this->dist(generator);
-                    float r2 = this->dist(generator);
+                    r1 = this->dist(generator);
+                    r2 = this->dist(generator);
 
-                    float x_i_d = x[i][dim];
+                    x_i_d = x[i][dim];
 
-                    float prev = inertia * v[i][dim];
-                    float pers = c1 * r1 * (pbests[i][dim] - x_i_d);
-                    float glob = c2 * r2 * (gbest[dim] - x_i_d);
-                    float v_i_d = prev + pers + glob;
+                    prev = inertia * v[i][dim];
+                    pers = c1 * r1 * (pbests[i][dim] - x_i_d);
+                    glob = c2 * r2 * (gbest[dim] - x_i_d);
+                    v_i_d = prev + pers + glob;
                     // cout << "v_i_d " << v_i_d << endl;
                     // cout << "prev " << prev << endl;
                     // cout << "pers " << pers << endl;
@@ -280,11 +290,10 @@ class PSO // Particle Swarm Optimization
         void write_pos() {
             // unecessary; TODO define x's size at declaration and use that
             for (int i=0; i < N; i++) {
-                int dim;
-                for (dim=0; dim < D; dim++) {
+                for (int dim=0; dim < D; dim++) {
                     positions[i][dim] = x[i][dim];
                 }
-                positions[i][dim] = z[i];
+                positions[i][D] = z[i];
             }
             
         }
@@ -311,14 +320,19 @@ GLfloat loss_fn (GLfloat X[DIMS]) {
         GLfloat y_comp = y*y - 10 * cos(2.0 * M_PI * y) + 10;
         return x_comp + y_comp;
     } else if (funcName == "wellblech") {
-        return sin(x) - cos(y) - 1.0 + exp(y*0.1);
+        return sin(x) - cos(y) - 1.0 + exp(y*0.05);
     } else if (funcName == "schaffersf6") {
         GLfloat denominator = pow((sin(sqrt(x*x + y*y))), 2.0) - 0.5;
         GLfloat numerator = pow(1.0 - 0.001 * (x*x+y*y), 2);
         GLfloat frac = denominator/numerator;
         return - 2.0 - frac;
+    } else if (funcName == "ripple") {
+        return sin(10*(x*x+y*y))/10.0;
     } else if (funcName == "x2y2") {
         return 0.01 * (x*x + y*y);
+    } else if (funcName == "abscos") {
+        GLfloat a = abs(x) + abs(y);
+        return cos(a) * a;
     }
 
     return 0.0;
@@ -344,8 +358,8 @@ void set_zs() {
 void draw_fn() {
 
     // set triangle color
-    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE, front_triangle_color);
-    glMaterialfv(GL_BACK, GL_AMBIENT_AND_DIFFUSE, back_triangle_color);
+    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE, back_triangle_color);
+    glMaterialfv(GL_BACK, GL_AMBIENT_AND_DIFFUSE, front_triangle_color);
 
     // now go over vertices again, splitting each square tile into four equilateral triangles facing inwards
     // using the height values we already got
@@ -513,11 +527,8 @@ void display()
   draw_coordinate_system(1.0f);
   draw_light();
   draw_fn();
-  cout << "rewritin'" << endl;
   optimizer.write_pos();
-  cout << "redrawin'" << endl;
   draw_particles();
-  cout << "leavenin'" << endl;
   glutSwapBuffers();
 }
 
@@ -540,7 +551,6 @@ void reshape( GLint width, GLint height )
 
 void keyboard( GLubyte key, GLint x, GLint y )
 {
-  // just implemented the fast exit functionality
   if (key == ' ') {
       optimizer.step();
   } else if ( key == KEY_ESC) {
@@ -656,7 +666,7 @@ int main( int argc, char** argv )
   float upper_bounds[DIMS] = {Xmax[0], Ymax[1]};
 
   string initialization = "random";
-  optimizer.init(lower_bounds, upper_bounds, 0.01, 0.01, initialization, 1.);
+  optimizer.init(lower_bounds, upper_bounds, 0.1, 0.1, initialization, 1.0);
   
   glutMainLoop();
   return 0;
