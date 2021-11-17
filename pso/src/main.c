@@ -40,7 +40,7 @@ using namespace std;
 #define KEY_ESC 27
 
 
-const char* funcName = "schaffersf6";
+const char* funcName = "wellblech";
 
 // global variables for handling the arcball
 
@@ -74,7 +74,7 @@ static const GLfloat semi_transparent_front_color[] = { 1.0,0.0,0.0,0.5 };
 
 /* begin function plot parameter setup */
 static const int DIMS = 2;
-const GLfloat grid_size = 20.0f;
+const GLfloat grid_size = 40.0f;
 const GLfloat Xmin[] = {-grid_size,0.0f, 0.0f, 0.0f};
 const GLfloat Xmax[] = {grid_size, 0.0f, 0.0f, 0.0f};
 const GLfloat Ymin[] = {0.0f, -grid_size, 0.0f, 0.0f};
@@ -140,11 +140,6 @@ class PSO // Particle Swarm Optimization
 		mt19937 generator; // mersenne prime based PRNG
         string initialization;
         uniform_real_distribution<float> dist;
-        
-		//void init_gen();
-		//void init_pos();
-		//void update_pos();
-		//void update_bests();
 
 		// generator init function
 		void init_gen() {
@@ -153,6 +148,13 @@ class PSO // Particle Swarm Optimization
 		    this->generator = generator;
 		}
 
+        void init_vel() {
+            for (int i = 0; i < N; i++) {
+                for (int dim=0; dim  < D; dim++) {
+                    v[i][dim] = 0.0;
+                }
+            }
+        }
 		void init_pos() {
 		    // randomly initialize particles
 		    if (initialization == "random") {
@@ -190,7 +192,7 @@ class PSO // Particle Swarm Optimization
                 // update global best if improved
                 if (zi < gbest[D]) {
                     for (int dim = 0; dim < D; dim++) {
-                    gbest[dim] = x_i[dim];
+                        gbest[dim] = x_i[dim];
                     }
                     gbest[D] = zi;
                 }
@@ -212,11 +214,24 @@ class PSO // Particle Swarm Optimization
                 // calculate new velocity and add it to current pos
                 for (int dim = 0; dim < D; dim++) {
                     // sample from given distribution
+                    // TODO fix generator not workin
                     float r1 = this->dist(generator);
                     float r2 = this->dist(generator);
 
                     float x_i_d = x[i][dim];
-                    float v_i_d = inertia * v[i][dim] + c1 * r1 * (pbests[i][dim] - x_i_d) + c2 * r2 * (gbest[dim] - x_i_d);
+
+                    float prev = inertia * v[i][dim];
+                    float pers = c1 * r1 * (pbests[i][dim] - x_i_d);
+                    float glob = c2 * r2 * (gbest[dim] - x_i_d);
+                    float v_i_d = prev + pers + glob;
+                    // cout << "v_i_d " << v_i_d << endl;
+                    // cout << "prev " << prev << endl;
+                    // cout << "pers " << pers << endl;
+                    // cout << "glob " << glob << endl;
+                    // cout << "diff to glob " << gbest[dim] - x_i_d << endl;
+                    // cout << "c1 " << c1 << endl;
+                    // cout << "c2 " << c2 << endl;
+                    // cout << "gbest[dim] " << gbest[dim] << endl;
 
                     v[i][dim] = v_i_d;
                     x[i][dim] = x_i_d + v_i_d;
@@ -227,9 +242,12 @@ class PSO // Particle Swarm Optimization
 		// constructor
         PSO(){}
         
-		void init(float *lower_bounds, float *upper_bounds, float c1, float c2, string initialization) {
+		void init(float *lower_bounds, float *upper_bounds, float c1, float c2, string initialization, float inertia) {
             uniform_real_distribution<float> dist(.0, 1.);
             this->initialization = initialization;
+            this->inertia = inertia;
+            this->c1 = c1;
+            this->c2 = c2;
 
 		    float infinity = 3.40282e+038;
 		    init_gen();
@@ -257,6 +275,7 @@ class PSO // Particle Swarm Optimization
             gbest = new float[D+1];
 		    gbest[D] = infinity;
 		    init_pos();
+		    init_vel();
 		}
         void write_pos() {
             // unecessary; TODO define x's size at declaration and use that
@@ -276,6 +295,7 @@ class PSO // Particle Swarm Optimization
 		    update_bests();
 		    // update position and velocity of each particle
 		    update_pos();
+
 		}
 };
 
@@ -291,12 +311,14 @@ GLfloat loss_fn (GLfloat X[DIMS]) {
         GLfloat y_comp = y*y - 10 * cos(2.0 * M_PI * y) + 10;
         return x_comp + y_comp;
     } else if (funcName == "wellblech") {
-        return sin(x) - cos(y) - 1.0f;
+        return sin(x) - cos(y) - 1.0 + exp(y*0.1);
     } else if (funcName == "schaffersf6") {
         GLfloat denominator = pow((sin(sqrt(x*x + y*y))), 2.0) - 0.5;
         GLfloat numerator = pow(1.0 - 0.001 * (x*x+y*y), 2);
         GLfloat frac = denominator/numerator;
         return - 2.0 - frac;
+    } else if (funcName == "x2y2") {
+        return 0.01 * (x*x + y*y);
     }
 
     return 0.0;
@@ -313,8 +335,6 @@ void set_zs() {
             GLfloat X[2] = {x,y};
             z = loss_fn(X);
             zs[i][j] = z;
-            // cout << "at y = " << y << "; x = " << x << endl;
-            // cout << "got z = " << z << endl;
             y += tile_width_y;
         }
         x += tile_width_x;
@@ -493,8 +513,11 @@ void display()
   draw_coordinate_system(1.0f);
   draw_light();
   draw_fn();
+  cout << "rewritin'" << endl;
   optimizer.write_pos();
+  cout << "redrawin'" << endl;
   draw_particles();
+  cout << "leavenin'" << endl;
   glutSwapBuffers();
 }
 
@@ -518,15 +541,10 @@ void reshape( GLint width, GLint height )
 void keyboard( GLubyte key, GLint x, GLint y )
 {
   // just implemented the fast exit functionality
-  switch(key)
-  {
-  case ' ':
+  if (key == ' ') {
       optimizer.step();
-  case 'q':
-  case 'Q':
-  case KEY_ESC:
+  } else if ( key == KEY_ESC) {
   	exit(0);
-	break;
   }
 }
 
@@ -638,7 +656,7 @@ int main( int argc, char** argv )
   float upper_bounds[DIMS] = {Xmax[0], Ymax[1]};
 
   string initialization = "random";
-  optimizer.init(lower_bounds, upper_bounds, 2, 2, initialization);
+  optimizer.init(lower_bounds, upper_bounds, 0.01, 0.01, initialization, 1.);
   
   glutMainLoop();
   return 0;
