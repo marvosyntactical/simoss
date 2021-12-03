@@ -39,8 +39,7 @@ using namespace std;
 
 #define KEY_ESC 27
 
-
-const char* funcName = "abscos";
+const char* funcName = "wellblech"; // NOTE: ADJUSTABLE PARAMETER
 
 // global variables for handling the arcball
 
@@ -63,25 +62,27 @@ float zoomValue = 0.01f;
 static gl::ArcBall arcball;
 
 // initialize some colors
+
+static const GLfloat edge_color[] = {0.5f, 0.5f, 0.5f, 1.0f};
 static const GLfloat back_color[] = {0.0,0.0,1.0,0.5};
 static const GLfloat front_color[] = {1.0,1.0,0.1,0.5 };
-static const GLfloat front_triangle_color[] = { 0.4,0.4,0.45,0.8 };
+static const GLfloat front_triangle_color[] = { 0.6,0.6,0.6,1.0 };
 static const GLfloat back_triangle_color[] = { 0.1,0.1,0.15,0.4 };
-static const GLfloat prtcl_sphere_color[] = { 0.7,0.7,0.99,1.0 };
+// static const GLfloat prtcl_sphere_color[] = { 0.7,0.7,0.99,1.0 };
 static const GLfloat outer_sphere_color[] = { 0.0,1.0,0.0,1.0 };
 static const GLfloat semi_transparent_back_color[] = { 0.0,0.0,1.0,0.5};
 static const GLfloat semi_transparent_front_color[] = { 1.0,0.0,0.0,0.5 };
 
 /* begin function plot parameter setup */
 static const int DIMS = 2;
-const GLfloat grid_size = 40.0f;
+const GLfloat grid_size = 20.0f; // NOTE: ADJUSTABLE PARAMETER
 const GLfloat Xmin[] = {-grid_size,0.0f, 0.0f, 0.0f};
 const GLfloat Xmax[] = {grid_size, 0.0f, 0.0f, 0.0f};
 const GLfloat Ymin[] = {0.0f, -grid_size, 0.0f, 0.0f};
 const GLfloat Ymax[] = {0.0f, grid_size, 0.0f, 0.0f};
 
-static const GLfloat tile_width_x = 0.5;
-static const GLfloat tile_width_y = 0.5;
+static const GLfloat tile_width_x = 1.0; // NOTE: ADJUSTABLE PARAMETER
+static const GLfloat tile_width_y = 1.0; // NOTE: ADJUSTABLE PARAMETER
 
 const int num_tiles_x = (Xmax[0] - Xmin[0])/tile_width_x;
 const int num_tiles_y = (Ymax[1] - Ymin[1])/tile_width_y;
@@ -97,7 +98,20 @@ GLfloat zs[num_tiles_x + 1][num_tiles_y + 1]; // holds z value for each grid ver
 // PSO variables
 static const int N_PARTICLES = 10;
 float positions[N_PARTICLES][DIMS+1];
+GLfloat prtcl_sphere_color[N_PARTICLES][4];
 
+// particle colors
+void set_prtcl_colors() {
+    uniform_real_distribution<float> color_dist(0.0, 1.0);
+    random_device rd_color;
+    mt19937 color_generator(rd_color());
+    for (int i=0; i < N_PARTICLES; i++) {
+        for (int d=0; d < 3; d++) {
+            prtcl_sphere_color[i][d] = color_dist(color_generator);
+        }
+        prtcl_sphere_color[i][3] = 1.0;
+    }
+}
 
 // function prototypes
 void draw_fn();
@@ -320,20 +334,29 @@ GLfloat loss_fn (GLfloat X[DIMS]) {
         GLfloat y_comp = y*y - 10 * cos(2.0 * M_PI * y) + 10;
         return x_comp + y_comp;
     } else if (funcName == "wellblech") {
-        return sin(x) - cos(y) - 1.0 + exp(y*0.05);
+        return 0.5*sin(x) - 0.5*cos(y) - 20.0 + exp(y*0.08) + pow(0.2*(x-5.0), 2.0) + pow(0.1*(y), 3.0) + pow(0.1*y, 4.0);
     } else if (funcName == "schaffersf6") {
         GLfloat denominator = pow((sin(sqrt(x*x + y*y))), 2.0) - 0.5;
         GLfloat numerator = pow(1.0 - 0.001 * (x*x+y*y), 2);
         GLfloat frac = denominator/numerator;
-        return - 2.0 - frac;
+        return - 2.0 - frac - 0.1 * (x + y);
     } else if (funcName == "ripple") {
         return sin(10*(x*x+y*y))/10.0;
     } else if (funcName == "x2y2") {
         return 0.01 * (x*x + y*y);
+    } else if (funcName == "x3y2") {
+        float x5 = 0.0001 * pow(x,4);
+        return x5 + 0.01 * (0.1*(x*x*x) + y*y) + atan(y) + 0.0001*(y*y*y*y);
     } else if (funcName == "abscos") {
         GLfloat a = abs(x) + abs(y);
         return cos(a) * a;
+    } else if (funcName == "peaks") {
+        GLfloat a = 3.0*pow(1.0-x,2)*exp(-pow(x,2.0)-pow(y+1.0, 2.0));
+        GLfloat b = 10.0*(x/5.0-pow(x,3.0)-pow(y,5.0))*exp(-(pow(x,2.0)+pow(y,2.0)));
+        GLfloat c = 1/3 * exp(-pow(x+1.0,2.0)-pow(y,2.0));
+        return a+b+c;
     }
+
 
     return 0.0;
 }
@@ -356,10 +379,6 @@ void set_zs() {
 }
 
 void draw_fn() {
-
-    // set triangle color
-    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE, back_triangle_color);
-    glMaterialfv(GL_BACK, GL_AMBIENT_AND_DIFFUSE, front_triangle_color);
 
     // now go over vertices again, splitting each square tile into four equilateral triangles facing inwards
     // using the height values we already got
@@ -392,6 +411,11 @@ void draw_fn() {
                     // (used for normal vector calculation)
                     // const GLfloat s0[] = {mid[0] - v0[0], mid[1] - v0[1], mid[2] - v0[2]};
                     // const GLfloat s1[] = {mid[0] - v1[0], mid[1] - v1[1], mid[2] - v1[2]};
+                    //
+
+                    // set triangle color
+                    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE, back_triangle_color);
+                    glMaterialfv(GL_BACK, GL_AMBIENT_AND_DIFFUSE, front_triangle_color);
 
                     // set triangle
                     glBegin(GL_TRIANGLES);
@@ -401,6 +425,25 @@ void draw_fn() {
                     glVertex3f(v1[0],  v1[1],  v1[2]);
                     glEnd();
 
+                    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE, edge_color);
+
+                    // also draw triangle edges for better visibility NOTE TODO add shadows!!
+                    glEnable(GL_LINE_SMOOTH);
+                    glBegin(GL_LINES);
+                    // edge 1:
+                    glVertex3f(v0[0],  v0[1],  v0[2]);
+                    glVertex3f(mid[0], mid[1], mid[2]);
+                    // edge 2:
+                    glVertex3f(mid[0], mid[1], mid[2]);
+                    glVertex3f(v1[0],  v1[1],  v1[2]);
+                    // edge 3:
+                    glVertex3f(v1[0],  v1[1],  v1[2]);
+                    glVertex3f(v0[0],  v0[1],  v0[2]);
+                    glEnd();
+
+
+
+                    // NOTE DEBUG:
                     // if (i==2 && j == 3 ) { // && x_vertices == 0 && y_vertices == 1) {
                     //     cout << "set triangle with " << endl;
                     //     cout << "mid = " <<  mid[0] << ", " << mid[1] << ", " << mid[2] << endl;
@@ -457,7 +500,7 @@ void draw_light()
 void draw_coordinate_system(float unit)
 {
 
-    static const GLfloat axis_color[]        = {0.5f, 0.5f, 0.5f, 1.0f};
+    static const GLfloat axis_color[] = {0.5f, 0.5f, 0.5f, 1.0f};
 
     glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE, axis_color);
 
@@ -501,14 +544,12 @@ void draw_coordinate_system(float unit)
 void draw_particles()
 {
   GLUquadricObj *qobj = gluNewQuadric();
-  glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, prtcl_sphere_color);
-  float* x_i;
 
   for (int i = 0; i < N_PARTICLES; i++) {
-      x_i = positions[i];
+      glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, prtcl_sphere_color[i]);
 
       glPushMatrix();
-      glTranslatef(x_i[0], x_i[1], x_i[2]);
+      glTranslatef(positions[i][0], positions[i][1], positions[i][2]);
       gluSphere(qobj,0.5,50,50);
       glPopMatrix();
 
@@ -541,9 +582,9 @@ void reshape( GLint width, GLint height )
 
   glMatrixMode( GL_PROJECTION );
   glLoadIdentity();
-  gluPerspective( 45, 1.0 * width / height, 1, 1000 );
+  gluPerspective(45, 1.0 * width / height, 1, 1000 );
    
-  glViewport( 0, 0, width, height);
+  glViewport(0, 0, width, height);
 
   glMatrixMode(GL_MODELVIEW);
   glLoadIdentity();
@@ -660,13 +701,15 @@ int main( int argc, char** argv )
   glutMotionFunc( motion );
 
   set_zs();
+  set_prtcl_colors();
 
   // initialize PSO
   float lower_bounds[DIMS] = {Xmin[0], Ymin[1]};
   float upper_bounds[DIMS] = {Xmax[0], Ymax[1]};
 
   string initialization = "random";
-  optimizer.init(lower_bounds, upper_bounds, 0.1, 0.1, initialization, 1.0);
+  float c = 0.05; // NOTE: ADJUSTABLE PARAMETER
+  optimizer.init(lower_bounds, upper_bounds, c, c, initialization, 1.0);
   
   glutMainLoop();
   return 0;
