@@ -44,8 +44,8 @@ const char* funcName = "wellblech"; // NOTE: ADJUSTABLE PARAMETER
 // global variables for handling the arcball
 
 // screen size
-int screenWidth = 1280;
-int screenHeight = 720;
+int screenWidth = 1920;
+int screenHeight = 1080;
 
 // last and current y mouse position for zooming
 int last_y = 0;
@@ -63,7 +63,7 @@ static gl::ArcBall arcball;
 
 // initialize some colors
 
-static const GLfloat edge_color[] = {0.5f, 0.5f, 0.5f, 1.0f};
+static const GLfloat edge_color[] = {0.6f, 0.6f, 0.6f, 1.0f};
 static const GLfloat back_color[] = {0.0,0.0,1.0,0.5};
 static const GLfloat front_color[] = {1.0,1.0,0.1,0.5 };
 static const GLfloat front_triangle_color[] = { 0.6,0.6,0.6,1.0 };
@@ -74,16 +74,24 @@ static const GLfloat outer_sphere_color[] = { 0.0,1.0,0.0,1.0 };
 static const GLfloat semi_transparent_back_color[] = { 0.0,0.0,1.0,0.5};
 static const GLfloat semi_transparent_front_color[] = { 1.0,0.0,0.0,0.5 };
 
+//colors for arrows
+static const GLfloat gbest_arrow_color[] = {1.0, 0.0, 0.0, 1.0};
+static const GLfloat pbest_arrow_color[] = {0.0, 0.0, 1.0, 1.0};
+static const GLfloat particle_arrow_color[] = {0.0, 1.0, 0.0, 1.0};
+
+
 /* begin function plot parameter setup */
 static const int DIMS = 2;
-const GLfloat grid_size = 20.0f; // NOTE: ADJUSTABLE PARAMETER
-const GLfloat Xmin[] = {-grid_size,0.0f, 0.0f, 0.0f};
-const GLfloat Xmax[] = {grid_size, 0.0f, 0.0f, 0.0f};
-const GLfloat Ymin[] = {0.0f, -grid_size, 0.0f, 0.0f};
-const GLfloat Ymax[] = {0.0f, grid_size, 0.0f, 0.0f};
+// const GLfloat grid_size = 20.0f; // NOTE: ADJUSTABLE PARAMETER
+const GLfloat grid_size_x = 20.0f; // NOTE: ADJUSTABLE PARAMETER
+const GLfloat grid_size_y = 20.0f; // NOTE: ADJUSTABLE PARAMETER
+const GLfloat Xmin[] = {-grid_size_x,0.0f, 0.0f, 0.0f};
+const GLfloat Xmax[] = {grid_size_x, 0.0f, 0.0f, 0.0f};
+const GLfloat Ymin[] = {0.0f, -grid_size_y, 0.0f, 0.0f};
+const GLfloat Ymax[] = {0.0f, grid_size_y, 0.0f, 0.0f};
 
-static const GLfloat tile_width_x = 2.0; // NOTE: ADJUSTABLE PARAMETER
-static const GLfloat tile_width_y = 2.0; // NOTE: ADJUSTABLE PARAMETER
+static const GLfloat tile_width_x = 1.0; // NOTE: ADJUSTABLE PARAMETER
+static const GLfloat tile_width_y = 1.0; // NOTE: ADJUSTABLE PARAMETER
 
 const int num_tiles_x = (Xmax[0] - Xmin[0])/tile_width_x;
 const int num_tiles_y = (Ymax[1] - Ymin[1])/tile_width_y;
@@ -94,6 +102,12 @@ const int num_tiles_y = (Ymax[1] - Ymin[1])/tile_width_y;
 //     zs[i] = new GLfloat[num_tiles_y + 1]; // holds z value for each grid vertex
 // }
 GLfloat zs[num_tiles_x + 1][num_tiles_y + 1]; // holds z value for each grid vertex
+GLfloat v0[DIMS+1]; 
+GLfloat v1[DIMS+1]; 
+GLfloat mid[DIMS+1]; 
+GLfloat lerp;
+GLfloat x;
+GLfloat y;
 /* end function plot parameter setup */
 
 // PSO variables
@@ -103,7 +117,9 @@ GLfloat prtcl_sphere_color[N_PARTICLES][4];
 
 // viz toggles
 bool plane_toggle = false;
-bool best_toggle = false;
+bool gbest_toggle = false;
+bool pbest_toggle = false;
+bool particle_toggle = false;
 
 // particle colors
 void set_prtcl_colors() {
@@ -120,8 +136,8 @@ void set_prtcl_colors() {
 
 // function prototypes
 void draw_fn();
-void draw_xy_plane_if_externally_toggled();
-void draw_best_if_externally_toggled();
+void draw_xy_plane_if_toggled();
+void draw_best_if_toggled();
 void draw_light();
 void draw_coordinate_system( float unit );
 void draw_particles();
@@ -155,7 +171,6 @@ class PSO // Particle Swarm Optimization
 		numtype* z; // function value array: N
 		numtype c1; // personal best hyperparameter
 		numtype c2; // global best hyperparameter
-		numtype** pbests; // local best array: N x (D + 1) (last element is function value)
 		numtype inertia;
 		mt19937 generator; // mersenne prime based PRNG
         string initialization;
@@ -165,9 +180,9 @@ class PSO // Particle Swarm Optimization
         numtype r1;
         numtype r2;
         numtype x_i_d;
-        numtype prev;
-        numtype pers;
-        numtype glob;
+        numtype v_inertial;
+        numtype v_personal_best;
+        numtype v_global_best;
         numtype v_i_d;
         numtype zi;
         numtype* x_i;
@@ -212,21 +227,13 @@ class PSO // Particle Swarm Optimization
             }
         }
 
+        // update personal bests and global best
 		void update_bests() {
-		    // TODO define different topologies here
+            // go over all particles
 		    for (int i = 0; i < N; i++) {
-                x_i = x[i];
-                // TODO re-add objective as parameter
-                zi = objective(x_i);
-                z[i] = zi;
-                // TODO make different tie-breaking schemes such as keeping multiple bests
-                // update global best if improved
-                if (zi < gbest[D]) {
-                    for (int dim = 0; dim < D; dim++) {
-                        gbest[dim] = x_i[dim];
-                    }
-                    gbest[D] = zi;
-                }
+                x_i = x[i]; // access particle position vector only once
+                zi = objective(x_i); // evaluate objective function
+                z[i] = zi; // (save function value for visualisation)
                 // update personal best if improved
                 if (zi < pbests[i][D]) {
                     for (int dim = 0; dim < D; dim++) {
@@ -234,7 +241,13 @@ class PSO // Particle Swarm Optimization
                     }
                     pbests[i][D] = zi;
                 }
-
+                // update global best if improved
+                if (zi < gbest[D]) {
+                    for (int dim = 0; dim < D; dim++) {
+                        gbest[dim] = x_i[dim];
+                    }
+                    gbest[D] = zi;
+                }
 		    }
 		}
 
@@ -244,28 +257,20 @@ class PSO // Particle Swarm Optimization
 		    for (int i = 0; i < N; i++) {
                 // calculate new velocity and add it to current pos
                 for (int dim = 0; dim < D; dim++) {
-                    // sample from given distribution
-                    // TODO fix generator not workin
-                    r1 = this->dist(generator);
-                    r2 = this->dist(generator);
+                    // sample from uniform distribution
+                    // (independently for each dimension!)
+                    r1 = this->dist(generator); // (mersenne prime twister
+                    r2 = this->dist(generator); // mt19937)
 
-                    x_i_d = x[i][dim];
+                    x_i_d = x[i][dim]; // only access particle position once
 
-                    prev = inertia * v[i][dim];
-                    pers = c1 * r1 * (pbests[i][dim] - x_i_d);
-                    glob = c2 * r2 * (gbest[dim] - x_i_d);
-                    v_i_d = prev + pers + glob;
-                    // cout << "v_i_d " << v_i_d << endl;
-                    // cout << "prev " << prev << endl;
-                    // cout << "pers " << pers << endl;
-                    // cout << "glob " << glob << endl;
-                    // cout << "diff to glob " << gbest[dim] - x_i_d << endl;
-                    // cout << "c1 " << c1 << endl;
-                    // cout << "c2 " << c2 << endl;
-                    // cout << "gbest[dim] " << gbest[dim] << endl;
+                    v_inertial = inertia * v[i][dim];
+                    v_personal_best = c1 * r1 * (pbests[i][dim] - x_i_d);
+                    v_global_best = c2 * r2 * (gbest[dim] - x_i_d);
+                    v_i_d = v_inertial + v_personal_best + v_global_best;
 
-                    v[i][dim] = v_i_d;
-                    x[i][dim] = x_i_d + v_i_d;
+                    v[i][dim] = v_i_d; // update velocity
+                    x[i][dim] = x_i_d + v_i_d; // update position
                 }
 		    }
 		}
@@ -274,6 +279,7 @@ class PSO // Particle Swarm Optimization
 
         // make this accessible for drawing an arrow above it
 		numtype* gbest; // global best array: D + 1 (last element is function value)
+		numtype** pbests; // local best array: N x (D + 1) (last element is function value)
 		// constructor
         PSO(){}
 
@@ -320,8 +326,9 @@ class PSO // Particle Swarm Optimization
 
 		    reset();
         }
+
         void write_pos() {
-            // unecessary; TODO define x's size at declaration and use that
+            // write D+1 dimensional position vector; for visualisation
             for (int i=0; i < N; i++) {
                 for (int dim=0; dim < D; dim++) {
                     positions[i][dim] = x[i][dim];
@@ -334,9 +341,9 @@ class PSO // Particle Swarm Optimization
 		    // before particles are updated; set global best (and local best based on topology)
 		    // using current positions
 		    update_bests();
+            write_pos();
 		    // update position and velocity of each particle
 		    update_pos();
-            write_pos();
 		}
 };
 
@@ -352,20 +359,41 @@ GLfloat objective (GLfloat X[DIMS]) {
         GLfloat y_comp = y*y - 10 * cos(2.0 * M_PI * y) + 10;
         return x_comp + y_comp;
     } else if (funcName == "wellblech") {
-        GLfloat wobble = 3.0f;
+        GLfloat wobble = 1.5f;
         return wobble*sin(x) - wobble*cos(y) - 20.0 + exp(y*0.08) + pow(0.2*(x-5.0), 2.0) + pow(0.1*(y), 3.0) + pow(0.1*y, 4.0) -pow(0.05*x, 6.0);
     } else if (funcName == "schaffersf6") {
         GLfloat denominator = pow((sin(sqrt(x*x + y*y))), 2.0) - 0.5;
         GLfloat numerator = pow(1.0 - 0.001 * (x*x+y*y), 2);
         GLfloat frac = denominator/numerator;
         return - 2.0 - frac - 0.1 * (x + y);
+    } else if (funcName == "x2") {
+        GLfloat lower, upper, r;
+        r = 0.02 * pow(x,2.0) + sin(y) + 0.01 *pow(y,2.0) - 20.0;
+        lower = 10.0;
+        upper = 20.0;
+        if (lower < y and y < upper) {
+            r -= 6.0;
+        }
+        return r;
     } else if (funcName == "ripple") {
         return sin(10*(x*x+y*y))/10.0;
     } else if (funcName == "x2y2") {
-        return 0.01 * (x*x + y*y);
+        return 0.03 * (x*x + y*y) - 10.0;
+    } else if (funcName == "xy") {
+        return 0.03 * x*y + 0.0001* pow(x*y,2.0);
     } else if (funcName == "x3y2") {
         GLfloat x5 = 0.0001 * pow(x,4);
         return x5 + 0.01 * (0.1*(x*x*x) + y*y) + atan(y) + 0.0001*(y*y*y*y);
+    } else if (funcName == "surprise") {
+        GLfloat clamp_val = 3.0;
+        GLfloat minx = min(abs(x), clamp_val);
+        GLfloat r = pow(minx,2);
+        GLfloat step_size = 10.0;
+        GLfloat step_size_z = 10.0;
+
+        int tmp = x / step_size; 
+        r -= tmp * step_size_z;
+        return r;
     } else if (funcName == "abscos") {
         GLfloat a = abs(x) + abs(y);
         return cos(a) * a;
@@ -396,23 +424,27 @@ void set_zs() {
 }
 
 void draw_fn() {
+    // TODO (low priority): generalize to D dimensions
 
     // now go over vertices again, splitting each square tile into four equilateral triangles facing inwards
     // using the height values we already got
-    GLfloat x = Xmin[0];
-    GLfloat y;
+    x = Xmin[0];
+    y;
     for (int i = 0; i < num_tiles_x; i++) {
         y = Ymin[1]; // reset y
         for (int j = 0; j < num_tiles_y; j++) {
 
-            const GLfloat lerp = (zs[i][j] + zs[i+1][j] + zs[i][j+1] + zs[i+1][j+1]) / 4.0f; // midpoint is linear interpolation of four neighboring vertices
-            const GLfloat mid[] = {x + (tile_width_x/2.0f), y + (tile_width_y/2.0f), lerp, 0.0f};
+            lerp = (zs[i][j] + zs[i+1][j] + zs[i][j+1] + zs[i+1][j+1]) / 4.0f; // midpoint height is linear interpolation of four neighboring vertices
+            mid[0] = x + (tile_width_x/2.0f);
+            mid[1] = y + (tile_width_y/2.0f);
+            mid[2] = lerp;
 
             for (int x_vertices = 0; x_vertices < 2; x_vertices++) {
                 for (int y_vertices = 0; y_vertices < 2; y_vertices++) {
                     // define outer corner points of triangle
-                    const GLfloat v0[] = {x + x_vertices * tile_width_x, y + y_vertices * tile_width_y, zs[i + x_vertices][j + y_vertices]};
-                    GLfloat v1[3];
+                    v0[0] = x + x_vertices * tile_width_x;
+                    v0[1] = y + y_vertices * tile_width_y;
+                    v0[2] = zs[i + x_vertices][j + y_vertices];
                     // go around counter-clockwise, starting from bottom
                     if ((x_vertices + y_vertices) % 2 == 0) {
                         v1[0] = x + (1 - x_vertices) * tile_width_x;
@@ -442,7 +474,7 @@ void draw_fn() {
                     glVertex3f(v1[0],  v1[1],  v1[2]);
                     glEnd();
 
-                    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE, edge_color);
+                    // glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE, edge_color);
 
                     // also draw triangle edges for better visibility NOTE TODO add shadows!!
                     glEnable(GL_LINE_SMOOTH);
@@ -481,10 +513,10 @@ void draw_fn() {
 }
 
 
-void draw_best_if_externally_toggled(){
-    if (best_toggle) {
+void draw_best_if_toggled(){
+    int i = N_PARTICLES-1; // Particle to track
+    if (gbest_toggle) {
         // draw arrow above best point
-        static const GLfloat best_arrow_color[] = {1.0, 0.0, 0.0, 1.0};
 
         // GLfloat* gbest = optimizer.gbest;
         // static const GLfloat gbest[] = {0.0,0.0,0.0};
@@ -492,7 +524,7 @@ void draw_best_if_externally_toggled(){
         static const GLfloat arrow_offset_z = 5.0;
         static const GLfloat arrow_len = 5.0;
 
-        glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE, best_arrow_color);
+        glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE, gbest_arrow_color);
         glEnable(GL_LINE_SMOOTH);
 
         glBegin(GL_LINES);
@@ -508,11 +540,61 @@ void draw_best_if_externally_toggled(){
         glRasterPos3f(optimizer.gbest[0], optimizer.gbest[1], optimizer.gbest[2] + arrow_offset_z - 1.0);
         glutBitmapCharacter(GLUT_BITMAP_HELVETICA_18, 'G');
     }
+    if (pbest_toggle) {
+        // draw arrow above best point
+
+        // GLfloat* gbest = optimizer.gbest;
+        // static const GLfloat gbest[] = {0.0,0.0,0.0};
+
+
+        static const GLfloat arrow_offset_z = 5.0;
+        static const GLfloat arrow_len = 5.0;
+
+        glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE, pbest_arrow_color);
+        glEnable(GL_LINE_SMOOTH);
+
+        glBegin(GL_LINES);
+        glVertex3f( optimizer.pbests[i][0], optimizer.pbests[i][1], optimizer.pbests[i][2] + arrow_offset_z + arrow_len);
+        glVertex3f( optimizer.pbests[i][0], optimizer.pbests[i][1], optimizer.pbests[i][2] + arrow_offset_z);
+        glEnd();
+
+        glPushMatrix();
+        glTranslatef(optimizer.pbests[i][0], optimizer.pbests[i][1], optimizer.pbests[i][2] + arrow_offset_z);
+        glutSolidCone(0.5, -2.0, 20, 20);
+        glPopMatrix();
+
+        glRasterPos3f(optimizer.pbests[i][0], optimizer.pbests[i][1], optimizer.pbests[i][2] + arrow_offset_z - 1.0);
+        glutBitmapCharacter(GLUT_BITMAP_HELVETICA_18, 'P');
+    }
+    if (particle_toggle) {
+        // draw arrow above best point
+        // GLfloat* gbest = optimizer.gbest;
+        // static const GLfloat gbest[] = {0.0,0.0,0.0};
+
+        static const GLfloat arrow_offset_z = 5.0;
+        static const GLfloat arrow_len = 5.0;
+
+        glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE, particle_arrow_color);
+        glEnable(GL_LINE_SMOOTH);
+
+        glBegin(GL_LINES);
+        glVertex3f( positions[i][0], positions[i][1], positions[i][2] + arrow_offset_z + arrow_len);
+        glVertex3f( positions[i][0], positions[i][1], positions[i][2] + arrow_offset_z);
+        glEnd();
+
+        glPushMatrix();
+        glTranslatef(positions[i][0], positions[i][1], positions[i][2] + arrow_offset_z);
+        glutSolidCone(0.5, -2.0, 20, 20);
+        glPopMatrix();
+
+        glRasterPos3f(positions[i][0], positions[i][1], positions[i][2] + arrow_offset_z - 1.0);
+        // glutBitmapCharacter(GLUT_BITMAP_HELVETICA_18, 'P');
+    }
+
 }
 
-void draw_xy_plane_if_externally_toggled(){
+void draw_xy_plane_if_toggled(){
     if (plane_toggle) {
-        GLfloat plane_size = grid_size;
         GLfloat plane_z = 0.0;
         
         // set triangle color
@@ -520,13 +602,13 @@ void draw_xy_plane_if_externally_toggled(){
 
         // set triangle
         glBegin(GL_TRIANGLES);
-        glVertex3f(-grid_size, -grid_size, plane_z);
-        glVertex3f(grid_size, -grid_size, plane_z);
-        glVertex3f(-grid_size, grid_size, plane_z);
+        glVertex3f(-grid_size_x, -grid_size_y, plane_z);
+        glVertex3f(grid_size_x, -grid_size_y, plane_z);
+        glVertex3f(-grid_size_x, grid_size_y, plane_z);
 
-        glVertex3f(-grid_size, grid_size, plane_z);
-        glVertex3f(grid_size, -grid_size, plane_z);
-        glVertex3f(grid_size, grid_size, plane_z);
+        glVertex3f(-grid_size_x, grid_size_y, plane_z);
+        glVertex3f(grid_size_x, -grid_size_y, plane_z);
+        glVertex3f(grid_size_x, grid_size_y, plane_z);
         glEnd();
     }
 }
@@ -635,8 +717,8 @@ void display()
   draw_coordinate_system(1.0f);
   draw_light();
   draw_fn();
-  draw_xy_plane_if_externally_toggled();
-  draw_best_if_externally_toggled();
+  draw_xy_plane_if_toggled();
+  draw_best_if_toggled();
   draw_particles();
   glutSwapBuffers();
 }
@@ -666,10 +748,14 @@ void keyboard( GLubyte key, GLint x, GLint y )
       optimizer.reset();
   } else if (key == KEY_ESC) {
       exit(0);
-  } else if (key == 'p') {
+  } else if (key == 'h') {
       plane_toggle = !plane_toggle;
   } else if (key == 'g') {
-      best_toggle = !best_toggle;
+      gbest_toggle = !gbest_toggle;
+  } else if (key == 'p') {
+      pbest_toggle = !pbest_toggle;
+  } else if (key == 'a') {
+      particle_toggle = !particle_toggle;
   }
 }
 
@@ -679,8 +765,9 @@ void mouse( int button, int state, int x, int y )
   if( button == GLUT_LEFT_BUTTON && state == GLUT_DOWN )
   {
     bool shift, ctrl, alt = glutGetModifiers();
-    if (shift) {
-    } else {
+    // if (shift) {
+    // } else {
+    {
         // set use of arcball to true 
         arcball_on = true;
         // store current mouse position
@@ -780,8 +867,12 @@ int main( int argc, char** argv )
   float upper_bounds[DIMS] = {Xmax[0], Ymax[1]};
 
   string initialization = "random";
-  float c = 0.01; // NOTE: ADJUSTABLE PARAMETER
-  optimizer.init(lower_bounds, upper_bounds, c, c, initialization, 1.0);
+  // In most works, c1 = c2 =: c
+  float c = 2.0; // NOTE: ADJUSTABLE PARAMETER
+  float inertia_omega = 1.0; // NOTE: ADJUSTABLE PARAMETER
+
+  // initialize the optimizer
+  optimizer.init(lower_bounds, upper_bounds, c, c, initialization, inertia_omega);
   
   glutMainLoop();
   return 0;

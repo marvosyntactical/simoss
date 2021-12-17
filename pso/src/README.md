@@ -4,7 +4,7 @@
 ### Optimizations
 
 * [TODO] move shader code to GPU
-* [TODO] 
+* [TODO] move draw\_fn variable declarations outside of for loops
 * [TODO]
 * [TODO]
 
@@ -27,3 +27,47 @@
 * [TODO]
 * [TODO]
 * [TODO]
+
+
+
+### Meeting Notes
+
+
+* consenus based sampling colorbar
+* color surfaceplots
+* markov chain update formel
+* Pij -> Markovkern (oder nehme abzählbarkeit state space an)
+* f.s. -> ffa omega 
+* P(indikatorfunktion = 1) = 1
+* 0-1 gesetz?
+* 
+* 
+* 
+* 
+* 
+* 
+
+### Mail Notes
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
