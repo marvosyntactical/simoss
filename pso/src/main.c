@@ -39,7 +39,7 @@ using namespace std;
 
 #define KEY_ESC 27
 
-const char* funcName = "wellblech"; // NOTE: ADJUSTABLE PARAMETER
+const char* funcName = "schaffersf6"; // NOTE: ADJUSTABLE PARAMETER
 
 // global variables for handling the arcball
 
@@ -360,7 +360,7 @@ GLfloat objective (GLfloat X[DIMS]) {
         return x_comp + y_comp;
     } else if (funcName == "wellblech") {
         GLfloat wobble = 1.5f;
-        return wobble*sin(x) - wobble*cos(y) - 20.0 + exp(y*0.08) + pow(0.2*(x-5.0), 2.0) + pow(0.1*(y), 3.0) + pow(0.1*y, 4.0) -pow(0.05*x, 6.0);
+        return wobble*sin(x) - wobble*cos(y) - 20.0 + exp(y*0.08) + pow(0.2*(x-5.0), 2.0) + pow(0.1*(y), 3.0) + pow(0.1*y, 4.0); // -pow(0.05*x, 6.0);
     } else if (funcName == "schaffersf6") {
         GLfloat denominator = pow((sin(sqrt(x*x + y*y))), 2.0) - 0.5;
         GLfloat numerator = pow(1.0 - 0.001 * (x*x+y*y), 2);
@@ -698,7 +698,7 @@ void draw_particles()
       glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, prtcl_sphere_color[i]);
 
       glPushMatrix();
-      glTranslatef(positions[i][0], positions[i][1], positions[i][2] + sphere_radius);
+      glTranslatef(positions[i][0], positions[i][1], positions[i][2] + sphere_radius + 0.5);
       gluSphere(qobj,sphere_radius,50,50);
       glPopMatrix();
 
@@ -866,14 +866,24 @@ int main( int argc, char** argv )
   float lower_bounds[DIMS] = {Xmin[0], Ymin[1]};
   float upper_bounds[DIMS] = {Xmax[0], Ymax[1]};
 
+  // HYPERPARAMETERS
   string initialization = "random";
   // In most works, c1 = c2 =: c
-  float c = 2.0; // NOTE: ADJUSTABLE PARAMETER
-  float inertia_omega = 1.0; // NOTE: ADJUSTABLE PARAMETER
+  //
+  float c = 0.2; // NOTE: ADJUSTABLE PARAMETER
+  float inertia = 0.9; // NOTE: ADJUSTABLE PARAMETER
 
   // initialize the optimizer
-  optimizer.init(lower_bounds, upper_bounds, c, c, initialization, inertia_omega);
+  optimizer.init(
+      lower_bounds,
+      upper_bounds,
+      c,
+      c,
+      initialization,
+      inertia
+  );
   
   glutMainLoop();
+
   return 0;
 }

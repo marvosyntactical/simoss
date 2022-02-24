@@ -1,5 +1,7 @@
 # PSO in GL
 
+See Makefile for compilation instructions.
+
 
 ### Optimizations
 
@@ -17,7 +19,7 @@
 * [TODO] make 1d visualisation; plot both decomposition of 2D into x, y
 * [TODO]
 
-### Paper
+### Xu et al. (2020) Paper
 * [TODO] 5.8 why does Y != G exist? they presuppose g^Y != g\* exists (prop is for the case P(G^k) -> \eps > 0 !)
 * [TODO] 5.7 proof: why \geq r\rho instead of just \geq\rho
 * [TODO] why "assume sigma^k=z", and then always condition on sigma^k=y? ~> z=sigma^{k+1} actually?
