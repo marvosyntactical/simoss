@@ -75,7 +75,6 @@ static const GLfloat semi_transparent_back_color[] = { 0.0,0.0,1.0,0.5};
 static const GLfloat semi_transparent_front_color[] = { 1.0,0.0,0.0,0.5 };
 
 //colors for arrows
-static const GLfloat gbest_arrow_color[] = {1.0, 0.0, 0.0, 1.0};
 static const GLfloat pbest_arrow_color[] = {0.0, 0.0, 1.0, 1.0};
 static const GLfloat particle_arrow_color[] = {0.0, 1.0, 0.0, 1.0};
 
@@ -117,7 +116,6 @@ GLfloat prtcl_sphere_color[N_PARTICLES][4];
 
 // viz toggles
 bool plane_toggle = false;
-bool gbest_toggle = false;
 bool pbest_toggle = false;
 bool particle_toggle = false;
 
@@ -182,7 +180,7 @@ class PSO // Particle Swarm Optimization
         numtype x_i_d;
         numtype v_inertial;
         numtype v_personal_best;
-        numtype v_global_best;
+        numtype v_rando;
         numtype v_i_d;
         numtype zi;
         numtype* x_i;
@@ -227,7 +225,7 @@ class PSO // Particle Swarm Optimization
             }
         }
 
-        // update personal bests and global best
+        // update personal bests 
 		void update_bests() {
             // go over all particles
 		    for (int i = 0; i < N; i++) {
@@ -240,13 +238,6 @@ class PSO // Particle Swarm Optimization
                     pbests[i][dim] = x_i[dim];
                     }
                     pbests[i][D] = zi;
-                }
-                // update global best if improved
-                if (zi < gbest[D]) {
-                    for (int dim = 0; dim < D; dim++) {
-                        gbest[dim] = x_i[dim];
-                    }
-                    gbest[D] = zi;
                 }
 		    }
 		}
@@ -262,12 +253,12 @@ class PSO // Particle Swarm Optimization
                     r1 = this->dist(generator); // (mersenne prime twister
                     r2 = this->dist(generator); // mt19937)
 
-                    x_i_d = x[i][dim]; // only access particle position once
+                    x_i_d = x[i][dim]; // only access current particle position once
 
                     v_inertial = inertia * v[i][dim];
                     v_personal_best = c1 * r1 * (pbests[i][dim] - x_i_d);
-                    v_global_best = c2 * r2 * (gbest[dim] - x_i_d);
-                    v_i_d = v_inertial + v_personal_best + v_global_best;
+                    v_rando = c2 * r2;
+                    v_i_d = v_inertial + v_personal_best + v_rando;
 
                     v[i][dim] = v_i_d; // update velocity
                     x[i][dim] = x_i_d + v_i_d; // update position
@@ -278,13 +269,11 @@ class PSO // Particle Swarm Optimization
 	public:
 
         // make this accessible for drawing an arrow above it
-		numtype* gbest; // global best array: D + 1 (last element is function value)
 		numtype** pbests; // local best array: N x (D + 1) (last element is function value)
 		// constructor
         PSO(){}
 
         void reset() {
-            gbest[D] = infinity;
             for (int i = 0; i < N; i++) {
                 pbests[i][D] = infinity;
             }
@@ -293,7 +282,14 @@ class PSO // Particle Swarm Optimization
             write_pos();
         }
         
-		void init(numtype *lower_bounds, numtype *upper_bounds, numtype c1, numtype c2, string initialization, numtype inertia) {
+		void init(
+                numtype *lower_bounds,
+                numtype *upper_bounds,
+                numtype c1, numtype c2,
+                string initialization,
+                numtype inertia
+            ) {
+
             uniform_real_distribution<numtype> dist(.0, 1.);
             this->initialization = initialization;
             this->inertia = inertia;
@@ -322,7 +318,6 @@ class PSO // Particle Swarm Optimization
                 v[i] = new numtype[D];
                 pbests[i] = new numtype[D+1];
 		    }
-            gbest = new numtype[D+1];
 
 		    reset();
         }
@@ -515,37 +510,8 @@ void draw_fn() {
 
 void draw_best_if_toggled(){
     int i = N_PARTICLES-1; // Particle to track
-    if (gbest_toggle) {
-        // draw arrow above best point
-
-        // GLfloat* gbest = optimizer.gbest;
-        // static const GLfloat gbest[] = {0.0,0.0,0.0};
-
-        static const GLfloat arrow_offset_z = 5.0;
-        static const GLfloat arrow_len = 5.0;
-
-        glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE, gbest_arrow_color);
-        glEnable(GL_LINE_SMOOTH);
-
-        glBegin(GL_LINES);
-        glVertex3f( optimizer.gbest[0], optimizer.gbest[1], optimizer.gbest[2] + arrow_offset_z + arrow_len);
-        glVertex3f( optimizer.gbest[0], optimizer.gbest[1], optimizer.gbest[2] + arrow_offset_z);
-        glEnd();
-
-        glPushMatrix();
-        glTranslatef(optimizer.gbest[0], optimizer.gbest[1], optimizer.gbest[2] + arrow_offset_z);
-        glutSolidCone(0.5, -2.0, 20, 20);
-        glPopMatrix();
-
-        glRasterPos3f(optimizer.gbest[0], optimizer.gbest[1], optimizer.gbest[2] + arrow_offset_z - 1.0);
-        glutBitmapCharacter(GLUT_BITMAP_HELVETICA_18, 'G');
-    }
     if (pbest_toggle) {
         // draw arrow above best point
-
-        // GLfloat* gbest = optimizer.gbest;
-        // static const GLfloat gbest[] = {0.0,0.0,0.0};
-
 
         static const GLfloat arrow_offset_z = 5.0;
         static const GLfloat arrow_len = 5.0;
@@ -568,8 +534,6 @@ void draw_best_if_toggled(){
     }
     if (particle_toggle) {
         // draw arrow above best point
-        // GLfloat* gbest = optimizer.gbest;
-        // static const GLfloat gbest[] = {0.0,0.0,0.0};
 
         static const GLfloat arrow_offset_z = 5.0;
         static const GLfloat arrow_len = 5.0;
@@ -750,8 +714,6 @@ void keyboard( GLubyte key, GLint x, GLint y )
       exit(0);
   } else if (key == 'h') {
       plane_toggle = !plane_toggle;
-  } else if (key == 'g') {
-      gbest_toggle = !gbest_toggle;
   } else if (key == 'p') {
       pbest_toggle = !pbest_toggle;
   } else if (key == 'a') {
@@ -870,8 +832,8 @@ int main( int argc, char** argv )
   string initialization = "random";
   // In most works, c1 = c2 =: c
   //
-  float c1 = 2.0; // NOTE: ADJUSTABLE PARAMETER
-  float c2 = 2.0; // NOTE: ADJUSTABLE PARAMETER
+  float c1 = 1.80; // NOTE: ADJUSTABLE PARAMETER
+  float c2 = 0.20; // NOTE: ADJUSTABLE PARAMETER
   float inertia = 1.0; // NOTE: ADJUSTABLE PARAMETER
 
   // initialize the optimizer
