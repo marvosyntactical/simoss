@@ -38,7 +38,7 @@ using namespace std;
 
 #define KEY_ESC 27
 
-const char* funcName = "wellblech"; // NOTE: ADJUSTABLE PARAMETER
+const char* funcName = "alpine0"; // NOTE: ADJUSTABLE PARAMETER
 
 // global variables for handling the arcball
 
@@ -82,15 +82,15 @@ static const GLfloat particle_arrow_color[] = {0.0, 1.0, 0.0, 1.0};
 /* begin function plot parameter setup */
 static const int DIMS = 2;
 // const GLfloat grid_size = 20.0f; // NOTE: ADJUSTABLE PARAMETER
-const GLfloat grid_size_x = 80.0f; // NOTE: ADJUSTABLE PARAMETER
-const GLfloat grid_size_y = 80.0f; // NOTE: ADJUSTABLE PARAMETER
+const GLfloat grid_size_x = 150.0f; // NOTE: ADJUSTABLE PARAMETER
+const GLfloat grid_size_y = 150.0f; // NOTE: ADJUSTABLE PARAMETER
 const GLfloat Xmin[] = {-grid_size_x,0.0f, 0.0f, 0.0f};
 const GLfloat Xmax[] = {grid_size_x, 0.0f, 0.0f, 0.0f};
 const GLfloat Ymin[] = {0.0f, -grid_size_y, 0.0f, 0.0f};
 const GLfloat Ymax[] = {0.0f, grid_size_y, 0.0f, 0.0f};
 
-static const GLfloat tile_width_x = 4.0; // NOTE: ADJUSTABLE PARAMETER
-static const GLfloat tile_width_y = 4.0; // NOTE: ADJUSTABLE PARAMETER
+static const GLfloat tile_width_x = 8.0; // NOTE: ADJUSTABLE PARAMETER
+static const GLfloat tile_width_y = 8.0; // NOTE: ADJUSTABLE PARAMETER
 
 const int num_tiles_x = (Xmax[0] - Xmin[0])/tile_width_x;
 const int num_tiles_y = (Ymax[1] - Ymin[1])/tile_width_y;
@@ -109,10 +109,11 @@ GLfloat x;
 GLfloat y;
 /* end function plot parameter setup */
 
-// SWARMGRAD variables
-static const int N_PARTICLES = 10;
+// SWARMOPTIMIZER variables
+static const int N_PARTICLES = 100;
+static const int N_GROUPS = 10;
 float positions[N_PARTICLES][DIMS+1];
-GLfloat prtcl_sphere_color[N_PARTICLES][4];
+GLfloat prtcl_sphere_color[N_GROUPS][4];
 
 // viz toggles
 bool plane_toggle = false;
@@ -120,16 +121,23 @@ bool gbest_toggle = false;
 bool pbest_toggle = false;
 bool particle_toggle = false;
 
+int prtcl_group(int i) {
+    // takes index i out of N_particles and
+    // returns index g out of N_GROUPS
+    // that particle i belongs to.
+    return int(i/int(N_PARTICLES/N_GROUPS));
+}
+
 // particle colors
-void set_prtcl_colors() {
+void set_prtcl_colors(int n_groups) {
     uniform_real_distribution<float> color_dist(0.0, 1.0);
     random_device rd_color;
     mt19937 color_generator(rd_color());
-    for (int i=0; i < N_PARTICLES; i++) {
+    for (int g=0; g < n_groups; g++) {
         for (int d=0; d < 3; d++) {
-            prtcl_sphere_color[i][d] = color_dist(color_generator);
+            prtcl_sphere_color[g][d] = color_dist(color_generator);
         }
-        prtcl_sphere_color[i][3] = 1.0;
+        prtcl_sphere_color[g][3] = 1.0;
     }
 }
 
@@ -155,12 +163,12 @@ GLfloat objective (GLfloat X[DIMS]);
 // * make file command includes -c, which avoids linking, so only one file can be provided
 // * if -c is omitted, glut raises errors
 template <const int N, const int D, typename numtype>
-class SWARMGRAD // Particle Swarm Optimization
+class SWARMOPTIMIZER // Particle Swarm Optimization
 {
 	// N: number of particles; D: Dimensionality of search space; 
 	// F: (loss) function mapping from R^D -> R; should accept D element float array, return 1 float
 	// DIST: distribution object, such as std::uniform_real_distribution(0.0,1.0)
-	// initialization: initialization string; see SWARMGRAD::init_pos
+	// initialization: initialization string; see SWARMOPTIMIZER::init_pos
 	private:
 		// declarations
 		numtype* lower; // D-element array containing lower bounds of hyperrectangular search region
@@ -168,18 +176,26 @@ class SWARMGRAD // Particle Swarm Optimization
 		numtype** x; // position array: N x D
 		numtype** v; // velocity array: N x D
 		numtype* z; // function value array: N
-		numtype* softargmax; // (soft max) weight function value array: N
-		numtype* softmax; // X weighted by softargmax
-        numtype denominator;
-        numtype alpha;
 		numtype c1; // personal best hyperparameter
 		numtype c2; // global best hyperparameter
-		numtype inertia;
+		numtype inertia; // canonical pso omega inertia weight 0 <= w <= 1
 		mt19937 generator; // mersenne prime based PRNG
         string initialization;
+        string update_type;
         uniform_int_distribution<int> discrete_dist;
         // uniform_real_distribution<numtype> continuous_dist;
         normal_distribution<numtype> continuous_dist;
+        // SWARMGRAD:
+        int n_groups;
+        int group_size;
+        int t;
+        int merge_time;
+        // CBO:
+		numtype* softargmax; // (soft max) weight function value array: N
+		numtype* softmax; // X weighted by softargmax
+		numtype distance; // distance from X_i to current softmax
+        numtype denominator;
+        numtype alpha;
 
         // internal vars to calculate with
         numtype r1;
@@ -193,8 +209,6 @@ class SWARMGRAD // Particle Swarm Optimization
         numtype zi;
         numtype* x_i;
         numtype infinity;
-
-		numtype* mt; // current global best array
 
 		// generator init function
 		void init_gen() {
@@ -258,10 +272,18 @@ class SWARMGRAD // Particle Swarm Optimization
                 }
 		    }
 		}
+        void update_pos() {
+            if (update_type == "pso") {
+                update_pos_pso();
+            } else if (update_type == "cbo") {
+                update_pos_cbo();
+            } else if (update_type == "swag") {
+                update_pos_swag();
+            }
+        }
 
-        /*
         // advance system one step
-		void update_pos() {
+		void update_pos_pso() {
             // PSO update
 		    // update position and velocity of each particle
 		    for (int i = 0; i < N; i++) {
@@ -269,8 +291,8 @@ class SWARMGRAD // Particle Swarm Optimization
                 for (int dim = 0; dim < D; dim++) {
                     // sample from uniform distribution
                     // (independently for each dimension!)
-                    r1 = this->dist(generator); // (mersenne prime twister
-                    r2 = this->dist(generator); // mt19937)
+                    r1 = this->continuous_dist(generator); // (mersenne prime twister
+                    r2 = this->continuous_dist(generator); // mt19937)
 
                     x_i_d = x[i][dim]; // only access particle position once
 
@@ -284,42 +306,50 @@ class SWARMGRAD // Particle Swarm Optimization
                 }
 		    }
 		}
-        */
         
-        void update_pos() {
-            // SWARMGRAD update
-            // each particle chooses a particle
+        void update_pos_swag() {
+            // SWARMOPTIMIZER update
+            
+            // upper and lower thresholds on difference (~= gradient clipping)
             numtype upper = 5.0;
             numtype lower = -5.0;
-            numtype mult = 0.1;
+            numtype mult = 0.0; // update i by this much less if its better
             for (int i = 0; i < N; i++) {
-                // int j = this->discrete_dist(generator) % N; // TODO FIX RNG
-                int j = (i + 1) % N;
+                // each particle i chooses a comparison particle j
+                int j; // reference particle j
+                j = this->discrete_dist(generator) % N; // TODO FIX RNG
+                // if (t < merge_time) {
+                //     j = (i + 1) % group_size+int(i/group_size);
+                // } else {
+                //     if (t == merge_time && i == 0) {
+                //         cout << "MERGING SUBSWARMS at t=" << t << endl;
+                //     }
+                //     j = (i + 1) % N;
+                // }
                 numtype difference = z[i] - z[j];
                 difference = max(min(difference, upper), lower);
                 if (difference < 0.0) difference *= mult;
 
-                r1 = this->continuous_dist(generator);
-                r2 = this->continuous_dist(generator);
                 for (int dim=0; dim < D; dim++) {
+                    r1 = this->continuous_dist(generator);
+                    r2 = this->continuous_dist(generator);
                     v_inertial = inertia * v[i][dim];
                     v_attract = c1 * r1 * difference * (x[j][dim] - x[i][dim]);
-                    v[i][dim] = v_inertial + v_attract + (r2*c2);
-                }
-            }
-            for (int i = 0; i < N; i++) {
-                for (int dim=0; dim < D; dim++) {
-                    x[i][dim] += v[i][dim];
+                    v_i_d = v_attract + v_inertial + (r2*c2);
+                    v[i][dim] = v_i_d;
+                    x[i][dim] += v_i_d;
                 }
             }
         }
-        /*
+
         void calc_opt() {
+            // for CBO softmax
             // 0. clear out cache: softmax (rest is overwritten)
             for (int d = 0; d < D; d++) {
                 softmax[d] = 0.0;
             }
             denominator = 0.0; // reset denominator
+
             numtype wfi;
             numtype* x_i = new numtype[D];
 
@@ -340,12 +370,19 @@ class SWARMGRAD // Particle Swarm Optimization
                 }
             }
         }
-		void update_pos() {
+		void update_pos_cbo() {
             // CBO update
             //
             calc_opt(); // sets this->softmax to currently optimal particle
             
 		    for (int i = 0; i < N; i++) {
+                // calc distance from current optimal
+                distance = 0.0;
+                for (int dim = 0; dim < D; dim++) {
+                    distance += pow(softmax[dim] - x[i][dim], 2);
+                }
+                distance = sqrt(distance);
+
                 for (int dim = 0; dim < D; dim++) {
                     // sample from uniform distribution
                     // (independently for each dimension!)
@@ -353,18 +390,16 @@ class SWARMGRAD // Particle Swarm Optimization
 
                     x_i_d = x[i][dim]; // only access particle position once
 
-                    numtype dist = (softmax[dim] - x_i_d);
-                    numtype v_drift = c1 * dist; // - lambda * (X-m_t)
-                    numtype v_diffuse = c2 * r2 * abs(dist);
+                    numtype dist_d = (softmax[dim] - x_i_d);
+                    numtype v_drift = c1 * dist_d; // - lambda * (X-m_t)
+                    numtype v_diffuse = c2 * r2 * distance;
                     v_i_d = v_drift + v_diffuse;
 
                     v[i][dim] = v_i_d; // update velocity
-                    x[i][dim] = x_i_d + v_i_d; // update position
+                    x[i][dim] += v_i_d; // update position
                 }
 		    }
 		}
-        */
-
 
 	public:
 
@@ -372,7 +407,7 @@ class SWARMGRAD // Particle Swarm Optimization
 		numtype* gbest; // global best array: D + 1 (last element is function value)
 		numtype** pbests; // local best array: N x (D + 1) (last element is function value)
 		// constructor
-        SWARMGRAD(){}
+        SWARMOPTIMIZER(){}
 
         void reset() {
             gbest[D] = infinity;
@@ -382,19 +417,34 @@ class SWARMGRAD // Particle Swarm Optimization
 		    init_pos();
 		    init_vel();
             write_pos();
+            t = 0;
         }
         
-		void init(numtype *lower_bounds, numtype *upper_bounds, numtype c1, numtype c2, string initialization, numtype inertia) {
+		void init(
+                numtype *lower_bounds,
+                numtype *upper_bounds,
+                numtype c1,
+                numtype c2,
+                numtype inertia,
+                string initialization,
+                string update_type,
+                int n_groups,
+                int merge_time
+            ) {
 
             uniform_int_distribution<int> discrete_dist(0, N-1);
             // uniform_real_distribution<numtype> continuous_dist(.0, 1.);
             normal_distribution<numtype> continuous_dist(.0, 1.);
             this->initialization = initialization;
+            this->update_type = update_type;
             this->inertia = inertia;
             this->c1 = c1;
             this->c2 = c2;
+            this->n_groups = n_groups;
+            this->group_size = int(N/n_groups);
+            this->merge_time = merge_time;
 
-            alpha = 10.0;
+            alpha = 1.0; // for cbo
 		    infinity = 3.40282e+038;
 		    init_gen();
 
@@ -437,16 +487,19 @@ class SWARMGRAD // Particle Swarm Optimization
         }
 
 		void step() {
-		    // before particles are updated; set global best (and local best based on topology)
+		    // before particles are updated:
+            // set global best (and local best based on topology)
 		    // using current positions
 		    update_bests();
+            // for reading (visualisation)
             write_pos();
 		    // update position and velocity of each particle
 		    update_pos();
+            t += 1;
 		}
 };
 
-SWARMGRAD<N_PARTICLES, DIMS, float> optimizer;
+SWARMOPTIMIZER<N_PARTICLES, DIMS, float> optimizer;
 
 /* function definitions */
 
@@ -485,6 +538,18 @@ GLfloat objective (GLfloat X[DIMS]) {
     } else if (funcName == "alpine") {
         GLfloat thresh = 0.001;
         return (abs(x*sin(x)+0.1*x) - abs(y*sin(y)+0.1*y) + y*y * 0.01) * 0.1 + 1/max(abs(thresh*x)+abs(thresh*y), thresh);
+    } else if (funcName == "alpine0") {
+        GLfloat shiftx = 20;
+        GLfloat shifty = 20;
+        GLfloat shiftz = -10;
+        GLfloat thresh = 100;
+        if (shiftx * 3 < x && shiftx *5 > x && shifty*3 < y && shifty*7 > y) {
+            // be locally repeating but globally increasing
+            // x = int(x - shiftx) % 80 + 20;
+            // y = int(y + shifty) % 80 + 30;
+            return -(x-shiftx*5 + y-shifty*5);
+        }
+        return (abs(x*sin(x)+0.1*x) + abs(y*cos(y)+0.2*y) + (x*x+y*y) * 0.01 -(x+y)*0.8) * 0.2 - shiftz;
     } else if (funcName == "x2y2") {
         return 0.03 * (x*x + y*y) - 10.0;
     } else if (funcName == "xy") {
@@ -803,7 +868,8 @@ void draw_particles()
   float sphere_radius = 2.0;
 
   for (int i = 0; i < N_PARTICLES; i++) {
-      glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, prtcl_sphere_color[i]);
+      int g = prtcl_group(i);
+      glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, prtcl_sphere_color[g]);
 
       glPushMatrix();
       glTranslatef(positions[i][0], positions[i][1], positions[i][2] + sphere_radius + 0.5);
@@ -933,8 +999,7 @@ void motion( int x, int y )
   }
 }
 
-void init()
-{
+void init() {
   glClearColor(0.1f, 0.1f, 0.15f, 0.0f);
     
   glLightModeli(GL_LIGHT_MODEL_TWO_SIDE, GL_TRUE);
@@ -968,20 +1033,32 @@ int main( int argc, char** argv )
   glutMotionFunc( motion );
 
   set_zs();
-  set_prtcl_colors();
+  set_prtcl_colors(N_GROUPS);
 
-  // initialize SWARMGRAD
-  float center = 0.5;
-  float lower_bounds[DIMS] = {Xmin[0]*center, Ymin[1]*center};
-  float upper_bounds[DIMS] = {Xmax[0]*center, Ymax[1]*center};
-
+  // initialize SWARMOPTIMIZER
+  float center = 0.2;
+  float lower_bounds[DIMS] = {Xmin[0], Ymin[1]};
+  float upper_bounds[DIMS] = {Xmin[0] + (Xmax[0]-Xmin[0])*center, Ymin[1] + (Ymax[1]-Ymin[1])*center};
   // HYPERPARAMETERS
   string initialization = "random";
-  // In most works, c1 = c2 =: c
+  string update_type = "swag"; // cbo, swag, pso
+  int merge_time = 1000;
 
-  float c1 = 0.1; // NOTE: ADJUSTABLE PARAMETER
-  float c2 = 0.6; // NOTE: ADJUSTABLE PARAMETER
+
+  // SWARMGRAD settings for "alpine0"
   float inertia = 0.0; // NOTE: ADJUSTABLE PARAMETER
+  float c1 = 0.18; // NOTE: ADJUSTABLE PARAMETER
+  float c2 = 0.1; // NOTE: ADJUSTABLE PARAMETER
+
+  // CBO settings for "alpine0"
+  // float c1 = 0.25; // NOTE: ADJUSTABLE PARAMETER
+  // float c2 = 0.5; // NOTE: ADJUSTABLE PARAMETER
+
+  // PSO settings for "alpine0"
+  // In most works, c1 = c2 =: c
+  // float inertia = 0.2; // NOTE: ADJUSTABLE PARAMETER
+  // float c1 = 0.7; // NOTE: ADJUSTABLE PARAMETER
+  // float c2 = 0.7; // NOTE: ADJUSTABLE PARAMETER
 
   // initialize the optimizer
   optimizer.init(
@@ -989,8 +1066,11 @@ int main( int argc, char** argv )
       upper_bounds,
       c1,
       c2,
+      inertia,
       initialization,
-      inertia
+      update_type,
+      N_GROUPS,
+      merge_time
   );
   
   glutMainLoop();
