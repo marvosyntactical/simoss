@@ -38,7 +38,7 @@ using namespace std;
 
 #define KEY_ESC 27
 
-const char* funcName = "alpine0"; // NOTE: ADJUSTABLE PARAMETER
+const char* funcName = "wellblech"; // NOTE: ADJUSTABLE PARAMETER
 
 // global variables for handling the arcball
 
@@ -110,8 +110,8 @@ GLfloat y;
 /* end function plot parameter setup */
 
 // SWARMOPTIMIZER variables
-static const int N_PARTICLES = 100;
-static const int N_GROUPS = 10;
+static const int N_PARTICLES = 25;
+static const int N_GROUPS = 1;
 float positions[N_PARTICLES][DIMS+1];
 GLfloat prtcl_sphere_color[N_GROUPS][4];
 
@@ -201,7 +201,8 @@ class SWARMOPTIMIZER // Particle Swarm Optimization
         numtype r1;
         numtype r2;
         numtype x_i_d;
-        numtype v_attract;
+        numtype v_attract1;
+        numtype v_attract2;
         numtype v_inertial;
         numtype v_personal_best;
         numtype v_global_best;
@@ -277,8 +278,8 @@ class SWARMOPTIMIZER // Particle Swarm Optimization
                 update_pos_pso();
             } else if (update_type == "cbo") {
                 update_pos_cbo();
-            } else if (update_type == "swag") {
-                update_pos_swag();
+            } else if (update_type == "swarm_grad") {
+                update_pos_swarm_grad();
             }
         }
 
@@ -307,17 +308,19 @@ class SWARMOPTIMIZER // Particle Swarm Optimization
 		    }
 		}
         
-        void update_pos_swag() {
-            // SWARMOPTIMIZER update
+        void update_pos_swarm_grad() {
+            // swarm grad update
             
             // upper and lower thresholds on difference (~= gradient clipping)
             numtype upper = 5.0;
-            numtype lower = -5.0;
-            numtype mult = 0.0; // update i by this much less if its better
+            numtype lower = -0.0; // e.g.lower = (- upper) or = (0.0)
+            numtype mult = 0.1; // update i by this much less if its better
             for (int i = 0; i < N; i++) {
                 // each particle i chooses a comparison particle j
-                int j; // reference particle j
-                j = this->discrete_dist(generator) % N; // TODO FIX RNG
+                int j, k; // reference particle j
+                j = this->discrete_dist(generator) % N;
+                k = this->discrete_dist(generator) % N;
+
                 // if (t < merge_time) {
                 //     j = (i + 1) % group_size+int(i/group_size);
                 // } else {
@@ -326,16 +329,29 @@ class SWARMOPTIMIZER // Particle Swarm Optimization
                 //     }
                 //     j = (i + 1) % N;
                 // }
-                numtype difference = z[i] - z[j];
-                difference = max(min(difference, upper), lower);
-                if (difference < 0.0) difference *= mult;
+
+                numtype diff1 = z[i] - z[j];
+                numtype diff2 = z[i] - z[k];
+                diff1 = max(min(diff1, upper), lower);
+                diff2 = max(min(diff2, upper), lower);
+
+                // if (difference < 0.0) {
+                //     difference *= mult;
+                // }
 
                 for (int dim=0; dim < D; dim++) {
+
                     r1 = this->continuous_dist(generator);
                     r2 = this->continuous_dist(generator);
+
                     v_inertial = inertia * v[i][dim];
-                    v_attract = c1 * r1 * difference * (x[j][dim] - x[i][dim]);
-                    v_i_d = v_attract + v_inertial + (r2*c2);
+
+                    // grad ~= (f(x+h)-f(x))/|h| // with h = x[j]-x[i]
+
+                    // go along sampled "gradient" (to reference particle j)
+                    v_attract1 = c1 * r1 * diff1 * (x[j][dim] - x[i][dim]);
+                    v_attract2 = c1 * r2 * diff2 * (x[k][dim] - x[i][dim]);
+                    v_i_d = v_attract1 + v_attract2 + v_inertial;
                     v[i][dim] = v_i_d;
                     x[i][dim] += v_i_d;
                 }
@@ -1041,24 +1057,26 @@ int main( int argc, char** argv )
   float upper_bounds[DIMS] = {Xmin[0] + (Xmax[0]-Xmin[0])*center, Ymin[1] + (Ymax[1]-Ymin[1])*center};
   // HYPERPARAMETERS
   string initialization = "random";
-  string update_type = "swag"; // cbo, swag, pso
+  string update_type = "swarm_grad"; // cbo, swarm_grad, pso
   int merge_time = 1000;
 
+  float inertia = 0.0; // intialize always even though CBO does not use inertia weight
 
-  // SWARMGRAD settings for "alpine0"
-  float inertia = 0.0; // NOTE: ADJUSTABLE PARAMETER
-  float c1 = 0.18; // NOTE: ADJUSTABLE PARAMETER
+
+  // SWARM_GRAD settings for "alpine0"
+  // inertia = 0.1; // NOTE: ADJUSTABLE PARAMETER
+  float c1 = 0.1; // NOTE: ADJUSTABLE PARAMETER
   float c2 = 0.1; // NOTE: ADJUSTABLE PARAMETER
 
   // CBO settings for "alpine0"
-  // float c1 = 0.25; // NOTE: ADJUSTABLE PARAMETER
+  // float c1 = 0.2; // NOTE: ADJUSTABLE PARAMETER
   // float c2 = 0.5; // NOTE: ADJUSTABLE PARAMETER
 
   // PSO settings for "alpine0"
-  // In most works, c1 = c2 =: c
-  // float inertia = 0.2; // NOTE: ADJUSTABLE PARAMETER
-  // float c1 = 0.7; // NOTE: ADJUSTABLE PARAMETER
-  // float c2 = 0.7; // NOTE: ADJUSTABLE PARAMETER
+  // In most works, c1 = c2 =: c (= 2)
+  // inertia = 0.2; // NOTE: ADJUSTABLE PARAMETER
+  // float c1 = 0.5; // NOTE: ADJUSTABLE PARAMETER
+  // float c2 = 0.5; // NOTE: ADJUSTABLE PARAMETER
 
   // initialize the optimizer
   optimizer.init(
