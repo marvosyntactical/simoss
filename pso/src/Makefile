@@ -16,8 +16,8 @@ LDFLAGS     = -lglut -lGL -lGLU -lm
 #LDFLAGS    = -framework AGL -framework GLUT -framework OpenGL -framework Cocoa
 
 
-MYEXECUTABLE = PSO
-MYOBJECTS   = main.o
+MYEXECUTABLE = Bench
+MYOBJECTS   = benchmark.o
 
 $(MYEXECUTABLE): $(MYOBJECTS) Makefile
 	$(CC) $(MYOBJECTS) $(LDFLAGS) -o $(MYEXECUTABLE)

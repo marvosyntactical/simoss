@@ -16,8 +16,8 @@ LDFLAGS     = -lglut -lGL -lGLU -lm
 #LDFLAGS    = -framework AGL -framework GLUT -framework OpenGL -framework Cocoa
 
 
-MYEXECUTABLE = BRANCH
-MYOBJECTS   = branch.o
+MYEXECUTABLE = Vis2D
+MYOBJECTS   = vis_swarm_2d.o
 
 $(MYEXECUTABLE): $(MYOBJECTS) Makefile
 	$(CC) $(MYOBJECTS) $(LDFLAGS) -o $(MYEXECUTABLE)
