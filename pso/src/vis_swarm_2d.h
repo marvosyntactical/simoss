@@ -39,7 +39,7 @@ using namespace std;
 
 #define KEY_ESC 27
 
-const char* funcName = "alpine0"; // NOTE: ADJUSTABLE PARAMETER
+const char* funcName = "wellblech"; // NOTE: ADJUSTABLE PARAMETER
 
 // global variables for handling the arcball
 
@@ -152,7 +152,7 @@ void reshape( GLint width, GLint height );
 void keyboard( GLubyte key, GLint x, GLint y );
 void mouse( int button, int state, int x, int y );
 void motion( int x, int y );
-void init_glut();
+void init();
 int main( int argc, char** argv );
 void set_zs();
 GLfloat objective (GLfloat X[DIMS]);
@@ -623,14 +623,14 @@ void motion( int x, int y )
     // if current y value is smaller than last y mouse position
     if( cur_y < last_y )
       // increase zoom rate
-      zoomValue += 3.0f;
+      zoomValue += 0.7f;
     else
       // else decrease zoom rate
-      zoomValue -= 3.0f;
+      zoomValue -= 0.7f;
   }
 }
 
-void init_glut() {
+void init() {
   glClearColor(0.1f, 0.1f, 0.15f, 0.0f);
     
   glLightModeli(GL_LIGHT_MODEL_TWO_SIDE, GL_TRUE);
@@ -645,15 +645,17 @@ void init_glut() {
   glEnable(GL_BLEND);
 }
 
-int viz_optim(int argc, char** argv)
+int viz_optim()
 {
-  glutInit(&argc, argv);
+  int argc = 1;
+  char *argv[1] = {(char*)"Something"};
+  glutInit(argc, argv);
   glutInitDisplayMode( GLUT_DOUBLE | GLUT_DEPTH | GLUT_RGBA );
   glutInitWindowSize ( screenWidth, screenHeight );
   glutInitWindowPosition( 0, 0 );
   glutCreateWindow("A Particle swarm finding the minimum of some function");
 
-  init_glut();
+  init();
   glutReshapeFunc( reshape );
   
   glutIdleFunc( display );
@@ -666,65 +668,52 @@ int viz_optim(int argc, char** argv)
   set_zs();
   set_prtcl_colors(N_GROUPS);
 
-  float lower_bounds[DIMS]; // uniform init dist lower bounds
-  float upper_bounds[DIMS]; // uniform init dist upper bounds
-  for (int d=0; d < DIMS; d++) {
-	  // float bound = function_bounds[function_name];
-	  float bound = 999999; // 51.2
-	  lower_bounds[d] = -bound;
-	  upper_bounds[d] = bound;
-  }
 
-
-
+  /*
   // initialize SWARMOPTIMIZER
-  float init_range = 0.2;
+  float center = 0.2;
   float lower_bounds_init_dist[DIMS] = {Xmin[0], Ymin[1]};
-  float upper_bounds_init_dist[DIMS] = {Xmin[0] + (Xmax[0]-Xmin[0])*init_range, Ymin[1] + (Ymax[1]-Ymin[1])*init_range};
+  float upper_bounds_init_dist[DIMS] = {Xmin[0] + (Xmax[0]-Xmin[0])*center, Ymin[1] + (Ymax[1]-Ymin[1])*center};
 
   // HYPERPARAMETERS
   string initialization = "uniform";
-  string update_type = "pso"; // cbo, swarm_grad, pso
+  string update_type = "swarm_grad"; // cbo, swarm_grad, pso
   int merge_time = 1000;
 
-  int K;
-  float c1, c2, inertia; // CBO does not use inertia weight
+  float inertia = 0.0; // intialize always even though CBO does not use inertia weight
+
 
   // SWARM_GRAD settings for "alpine0"
-  // inertia = 0.2; // NOTE: ADJUSTABLE PARAMETER
-  // c1 = 0.3; // NOTE: ADJUSTABLE PARAMETER
-  // c2 = 0.1; // NOTE: ADJUSTABLE PARAMETER
-  // K = 2; // swarm_grad reference particles
+  // inertia = 0.1; // NOTE: ADJUSTABLE PARAMETER
+  float c1 = 0.1; // NOTE: ADJUSTABLE PARAMETER
+  float c2 = 0.1; // NOTE: ADJUSTABLE PARAMETER
 
   // CBO settings for "alpine0"
-  // c1 = 0.2; // NOTE: ADJUSTABLE PARAMETER
-  // c2 = 0.5; // NOTE: ADJUSTABLE PARAMETER
+  // float c1 = 0.2; // NOTE: ADJUSTABLE PARAMETER
+  // float c2 = 0.5; // NOTE: ADJUSTABLE PARAMETER
 
   // PSO settings for "alpine0"
   // In most works, c1 = c2 =: c (= 2)
-  inertia = 0.1; // NOTE: ADJUSTABLE PARAMETER
-  c1 = 0.2; // NOTE: ADJUSTABLE PARAMETER
-  c2 = 0.5; // NOTE: ADJUSTABLE PARAMETER
+  // inertia = 0.2; // NOTE: ADJUSTABLE PARAMETER
+  // float c1 = 0.5; // NOTE: ADJUSTABLE PARAMETER
+  // float c2 = 0.5; // NOTE: ADJUSTABLE PARAMETER
 
   // initialize the optimizer
   optimizer.init(
       lower_bounds_init_dist,
       upper_bounds_init_dist,
-      lower_bounds,
-      upper_bounds,
       c1,
       c2,
       inertia,
       initialization,
       update_type,
       "max_steps",
-      2000,
+      999999,
       N_GROUPS,
       merge_time,
-      objective,
-      K
+      objective
   );
-
+  */
 
   glutMainLoop();
 
@@ -733,6 +722,6 @@ int viz_optim(int argc, char** argv)
 
 int main( int argc, char** argv )
 {
-  viz_optim(argc, argv);
+  viz_optim();
 }
 

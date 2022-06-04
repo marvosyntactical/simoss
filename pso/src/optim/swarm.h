@@ -10,7 +10,7 @@ using namespace std;
 // TODO put this class in a separate file again, current problem:
 // * make file command includes -c, which avoids linking, so only one file can be provided
 // * if -c is omitted, glut raises errors
-template <const int N, const int D, typename numtype>
+template <const int N, const int D, typename real>
 class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 {
 	// N: number of particles; D: Dimensionality of search space; 
@@ -19,25 +19,27 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 	// initialization: initialization string; see SWARMOPTIMIZER::init_pos
 	private:
 		// declarations
-		function<numtype (numtype*)> objective;
-		numtype* upper_bounds_init_dist; // D-element array containing upper_bounds_init_dist bounds of position init dist
-		numtype* lower_bounds_init_dist; // D-element array containing lower_bounds_init_dist bounds of position init dist
-		numtype* upper_bounds; // D-element array containing upper_bounds_init_dist bounds of hyperrectangular search region
-		numtype* lower_bounds; // D-element array containing lower_bounds_init_dist bounds of hyperrectangular search region
-		numtype** v; // velocity array: N x D
-		numtype c1; // personal best hyperparameter
-		numtype c2; // global best hyperparameter
-		numtype inertia; // canonical pso omega inertia weight 0 <= w <= 1
+		function<real (real*)> objective;
+		real* upper_bounds_init_dist; // D-element array containing upper_bounds_init_dist bounds of position init dist
+		real* lower_bounds_init_dist; // D-element array containing lower_bounds_init_dist bounds of position init dist
+		real* upper_bounds; // D-element array containing upper_bounds_init_dist bounds of hyperrectangular search region
+		real* lower_bounds; // D-element array containing lower_bounds_init_dist bounds of hyperrectangular search region
+		real** v; // velocity array: N x D
+		real c1; // personal best hyperparameter
+		real c2; // global best hyperparameter
+		real inertia; // canonical pso omega inertia weight 0 <= w <= 1
 
 		string initialization;
 		string update_type;
 
 		mt19937 generator; // mersenne prime based PRNG
 		uniform_int_distribution<int> discrete_dist;
-		normal_distribution<numtype> continuous_dist;
+		uniform_real_distribution<real> uniform_dist;
+		normal_distribution<real> normal_dist;
+		
 
 		string convergence_criterion;
-		numtype criterion_value;
+		real criterion_value;
 		bool converged;
 		int plateau_steps;
 
@@ -46,27 +48,28 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 		int group_size;
 		int t;
 		int merge_time;
+		int K;
 
 		// CBO:
-		numtype* softargmax; // soft, smooth weight function value array: N
-		numtype* softmax; // X weighted by softargmax
-		numtype distance; // distance from X_i to current softmax
-		numtype denominator;
-		numtype alpha;
+		real* softargmax; // soft, smooth weight function value array: N
+		real* softmax; // X weighted by softargmax
+		real distance; // distance from X_i to current softmax
+		real denominator;
+		real alpha;
 
 		// internal vars to calculate with
-		numtype r1;
-		numtype r2;
-		numtype x_i_d;
-		numtype v_attract1;
-		numtype v_attract2;
-		numtype v_inertial;
-		numtype v_personal_best;
-		numtype v_global_best;
-		numtype v_i_d;
-		numtype zi;
-		numtype* x_i;
-		numtype infinity;
+		real r1;
+		real r2;
+		real x_i_d;
+		real v_attract;
+		real v_diffuse;
+		real v_inertial;
+		real v_personal_best;
+		real v_global_best;
+		real v_i_d;
+		real zi;
+		real* x_i;
+		real infinity;
 
 		// generator init function
 		void init_gen() {
@@ -90,13 +93,13 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 			// cout << "Opt: Initializing particles uniformly ... " << endl;
 			for (int dim = 0; dim < D; dim++) {
 			    // cout << "Opt: Initializing in dim " <<  dim << "... " << endl;
-			    numtype lower_bound_dim = lower_bounds_init_dist[dim];
-			    numtype upper_bound_dim = upper_bounds_init_dist[dim];
+			    real lower_bound_dim = lower_bounds_init_dist[dim];
+			    real upper_bound_dim = upper_bounds_init_dist[dim];
 			    // cout << "Opt: lower: " << lower_bound_dim << "." << endl;
 			    // cout << "Opt: upper: " << upper_bound_dim << "." << endl;
-			    uniform_real_distribution<numtype> init_dist_d(lower_bound_dim, upper_bound_dim);
+			    uniform_real_distribution<real> init_dist_d(lower_bound_dim, upper_bound_dim);
 			    for (int i = 0; i < N; i++) {
-				    // cout << "Opt: Initializing particle " <<  i << "... " << endl;
+			        // cout << "Opt: Initializing particle " <<  i << "... " << endl;
 				x[i][dim] = init_dist_d(generator);
 			    }
 			}
@@ -107,10 +110,10 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 		    } else if (initialization == "center") {
 			// spawn particles randomly on unit sphere around center
 			// TODO
-			// cout << "Not implemented: center spawning" << endl;
+			cout << "Not implemented: center spawning" << endl;
 			exit(1);
 			    } else {
-			// cout << "Allowed values of initialization are 'random', 'center'. Got " << initialization << endl;
+			cout << "Allowed values of initialization are 'random', 'center'. Got " << initialization << endl;
 			exit(1);
 		    }
 		}
@@ -161,8 +164,8 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 			for (int dim = 0; dim < D; dim++) {
 			    // sample from uniform distribution
 			    // (independently for each dimension!)
-			    r1 = this->continuous_dist(generator); // (mersenne prime twister
-			    r2 = this->continuous_dist(generator); // mt19937)
+			    r1 = this->uniform_dist(generator); // (mersenne prime twister
+			    r2 = this->uniform_dist(generator); // mt19937)
 
 			    x_i_d = x[i][dim]; // only access particle position once
 
@@ -188,46 +191,54 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 		    // swarm grad update
 		    
 		    // upper_bounds_init_dist and lower_bounds_init_dist thresholds on difference (~= gradient clipping)
-		    numtype upper_thresh = 5.0;
-		    numtype lower_thresh = -0.0; // e.g.lower_bounds_init_dist = (- upper_bounds_init_dist) or = (0.0)
-		    numtype mult = 0.1; // update i by this much less if its better
+		    real upper_thresh = 5.0;
+		    real lower_thresh = -0.0; // e.g. lower_thresh = (- upper_bounds_init_dist) or = 0.0
+		    real mult = 0.1; // update i by this much less if its better
 		    for (int i = 0; i < N; i++) {
 			// each particle i chooses a comparison particle j
-			int j, k; // reference particle j
-			j = this->discrete_dist(generator) % N;
-			k = this->discrete_dist(generator) % N;
+			real numerator = 0;
+			real* Diff = new real[K];
+			int* J = new int[K];
 
-			// if (t < merge_time) {
-			//     j = (i + 1) % group_size+int(i/group_size);
-			// } else {
-			//     if (t == merge_time && i == 0) {
-			//         // cout << "MERGING SUBSWARMS at t=" << t << endl;
-			//     }
-			//     j = (i + 1) % N;
-			// }
+			for (int k = 0; k < K; k++) {
+				int jk = i;
+				while (jk == i) {
+					jk = this->discrete_dist(generator) % N;
+					// if (t < merge_time) {
+					//     j = (i + 1) % group_size+int(i/group_size);
+					// } else {
+					//     if (t == merge_time && i == 0) {
+					//         // cout << "MERGING SUBSWARMS at t=" << t << endl;
+					//     }
+					//     j = (i + 1) % N;
+					// }
+				}
+				J[k] = jk;
 
-			numtype diff1 = z[i] - z[j];
-			numtype diff2 = z[i] - z[k];
-			diff1 = max(min(diff1, upper_thresh), lower_thresh);
-			diff2 = max(min(diff2, upper_thresh), lower_thresh);
-
-			// if (difference < 0.0) {
-			//     difference *= mult;
-			// }
+				real dk = z[i] - z[jk];
+				real dk_clip = max(min(dk, upper_thresh), lower_thresh);
+				Diff[k] = dk_clip;
+			}
 
 			for (int dim=0; dim < D; dim++) {
 
-			    r1 = this->continuous_dist(generator);
-			    r2 = this->continuous_dist(generator);
+			    r1 = this->uniform_dist(generator);
+			    r2 = this->uniform_dist(generator);
+
+			    x_i_d = x[i][dim];
 
 			    v_inertial = inertia * v[i][dim];
+			    v_diffuse = c2 * r2;
 
-			    // grad ~= (f(x+h)-f(x))/|h| // with h = x[j]-x[i]
+			    real cumulative_grad = 0;
+			    for (int k=1; k< K; k++) {
+				    // grad ~= (f(x+h)-f(x))/|h| // with h = x[j]-x[i]
+				    cumulative_grad += Diff[k] * (x[J[k]][dim] - x_i_d);
+			    }
 
 			    // go along sampled "gradient" (to reference particle j)
-			    v_attract1 = c1 * r1 * diff1 * (x[j][dim] - x[i][dim]);
-			    v_attract2 = c1 * r2 * diff2 * (x[k][dim] - x[i][dim]);
-			    v_i_d = v_attract1 + v_attract2 + v_inertial;
+			    v_attract = c1 * r1 * 1/K * cumulative_grad;
+			    v_i_d = v_attract + v_inertial + v_diffuse;
 
 			    // update
 			    v[i][dim] = v_i_d;
@@ -244,8 +255,8 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 		    }
 		    denominator = 0.0; // reset denominator
 
-		    numtype wfi;
-		    numtype* x_i = new numtype[D];
+		    real wfi;
+		    real* x_i = new real[D];
 
 		    for (int i = 0;  i < N; i++) {
 			wfi = exp(- alpha * z[i]);
@@ -281,13 +292,13 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 			for (int dim = 0; dim < D; dim++) {
 			    // sample from uniform distribution
 			    // (independently for each dimension!)
-			    r2 = this->continuous_dist(generator); // mt19937)
+			    r2 = this->normal_dist(generator); // mt19937)
 
 			    x_i_d = x[i][dim]; // only access particle position once
 
-			    numtype dist_d = (softmax[dim] - x_i_d);
-			    numtype v_drift = c1 * dist_d; // - lambda * (X-m_t)
-			    numtype v_diffuse = c2 * r2 * distance;
+			    real dist_d = (softmax[dim] - x_i_d);
+			    real v_drift = c1 * dist_d; // - lambda * (X-m_t)
+			    real v_diffuse = c2 * r2 * distance;
 			    v_i_d = v_drift + v_diffuse;
 
 			    v[i][dim] = v_i_d; // update velocity
@@ -296,7 +307,7 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 		    }
 		}
 
-		numtype clamp_pos(numtype pos, int dim) {
+		real clamp_pos(real pos, int dim) {
 		    // cout << "clamping to dim" << dim << endl;
 			return max(min(pos, upper_bounds[dim]), lower_bounds[dim]);
 		}
@@ -304,37 +315,41 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 	public:
 
 		// make these fields accessible for visualization (drawing an arrow above)
-		numtype* gbest; // global best array: D + 1 (last element is function value)
-		numtype** pbests; // local best array: N x (D + 1) (last element is function value)
+		real* gbest; // global best array: D + 1 (last element is function value)
+		real** pbests; // local best array: N x (D + 1) (last element is function value)
 
 		// make these fields accessible vor visualization (drawing particles)
-		numtype** x; // position array: N x D
-		numtype* z; // function value array: N
+		real** x; // position array: N x D
+		real* z; // function value array: N
 
 		// constructor
 		SWARMOPTIMIZER(){}
 
 		// initialize after constructing
 		void init(
-			numtype *lower_bounds_init_dist, // positions
-			numtype *upper_bounds_init_dist, // positions
-			numtype *lower_bounds, // positions
-			numtype *upper_bounds, // positions
-			numtype c1, // HYPERPARAM
-			numtype c2, // HYPERPARAM
-			numtype inertia, // HYPERPARAM
+			real *lower_bounds_init_dist, // positions
+			real *upper_bounds_init_dist, // positions
+			real *lower_bounds, // positions
+			real *upper_bounds, // positions
+			real c1, // HYPERPARAM
+			real c2, // HYPERPARAM
+			real inertia, // HYPERPARAM
 			string initialization,
 			string update_type, // ALGO: pso, cbo, swarm_grad?
 			string convergence_criterion,
-			numtype criterion_value,
+			real criterion_value,
 			int n_groups,
 			int merge_time,
-			const function<numtype (numtype*)>& objective
+			const function<real (real*)>& objective,
+			int K
 		    ) {
 
 		    uniform_int_distribution<int> discrete_dist(0, N-1);
-		    normal_distribution<numtype> continuous_dist(.0, 1.);
-
+		    if (update_type == "pso") {
+			uniform_real_distribution<real> uniform_dist(.0, 1.);
+		    } else {
+		        normal_distribution<real> normal_dist(.0, 1.);
+		    }
 		    this->initialization = initialization;
 		    this->inertia = inertia;
 		    this->c1 = c1;
@@ -347,6 +362,7 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 		    this->n_groups = n_groups;
 		    this->group_size = int(N/n_groups);
 		    this->merge_time = merge_time;
+		    this->K = K;
 
 		    this->objective = objective;
 		    this->convergence_criterion = convergence_criterion;
@@ -356,13 +372,13 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 		    infinity = 3.40282e+038;
 		    init_gen();
 
-		    z = new numtype[N];
+		    z = new real[N];
 			    
-		    this->lower_bounds = new numtype[D];
-		    this->upper_bounds = new numtype[D];
-		    this->lower_bounds_init_dist = new numtype[D];
-		    this->upper_bounds_init_dist = new numtype[D];
-		    softmax = new numtype[D];
+		    this->lower_bounds = new real[D];
+		    this->upper_bounds = new real[D];
+		    this->lower_bounds_init_dist = new real[D];
+		    this->upper_bounds_init_dist = new real[D];
+		    softmax = new real[D];
 
 		    for (int dim = 0; dim < D; dim++) {
 			this->lower_bounds_init_dist[dim] = lower_bounds_init_dist[dim];
@@ -372,18 +388,18 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 			softmax[dim] = 0;
 		    }
 
-		    x = new numtype*[N];
-		    v = new numtype*[N];
-		    softargmax = new numtype[N];
+		    x = new real*[N];
+		    v = new real*[N];
+		    softargmax = new real[N];
 		    
-		    pbests = new numtype*[N];
+		    pbests = new real*[N];
 
 		    for (int i = 0; i < N; i++) {
-			x[i] = new numtype[D];
-			v[i] = new numtype[D];
-			pbests[i] = new numtype[D+1];
+			x[i] = new real[D];
+			v[i] = new real[D];
+			pbests[i] = new real[D+1];
 		    }
-		    gbest = new numtype[D+1];
+		    gbest = new real[D+1];
 
 		    reset();
 		}
@@ -438,20 +454,25 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 		    return converged;
 		}
 
-		tuple<numtype*, numtype, int> run() {
+		tuple<real*, real, int> run() {
 		    // reset, then do steps until convergence criterion met
 		    // and return gbest/ optimal found position
 		    // cout << "Resetting optimizer ... " << endl;
 		    reset();
 		    // cout << "Reset optimizer." << endl;
 		    while (not is_converged()) {
-			    // cout << "Opt: performing step " << t << " ... " << endl;
+		        // cout << "Opt: performing step " << t << " ... " << endl;
 			step();
 			// TODO print out some validation every 100 steps or so
 		    }
+		    return yield();
+		}
+
+		tuple<real*, real, int> yield() {
+		    // returns current best position, value, and current step
 
 		    // gbest is D+1 dimensional (gbest[-1] = objective(gbest[:-1]))
-		    numtype* best_position = new numtype[D];
+		    real* best_position = new real[D];
 		    for (int d = 0; d < D; d++) {
 			   best_position[d] = gbest[d];
 		    }
@@ -460,7 +481,8 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 			   best_position,
 			   gbest[D],
 			   t
-		    ); 
+		    );
 		}
+
 };
 
