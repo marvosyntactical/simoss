@@ -83,8 +83,7 @@ static const GLfloat particle_arrow_color[] = {0.0, 1.0, 0.0, 1.0};
 static const bool VIZ = true; // TODO implement
 
 /* begin function plot parameter setup */
-static const int DIMS = 2;
-
+static const int DIMS = 2; // TODO make 1-D vis possible
 
 // const GLfloat grid_size = 20.0f; // NOTE: ADJUSTABLE PARAMETER
 const GLfloat grid_size_x = 150.0f; // NOTE: ADJUSTABLE PARAMETER
@@ -111,11 +110,11 @@ GLfloat y;
 /* end function plot parameter setup */
 
 // SWARMOPTIMIZER variables
-static const int N_PARTICLES = 25;
+static const int N_PARTICLES = 20;
 static const int N_GROUPS = 1;
 GLfloat prtcl_sphere_color[N_GROUPS][4];
 
-// viz toggles
+// initialize viz toggles
 bool plane_toggle = false;
 bool gbest_toggle = false;
 bool pbest_toggle = false;
@@ -140,7 +139,7 @@ void set_prtcl_colors(int n_groups) {
     }
 }
 
-// function prototypes
+// function declarations
 void draw_fn();
 void draw_xy_plane_if_toggled();
 void draw_best_if_toggled();
@@ -157,6 +156,9 @@ int main( int argc, char** argv );
 void set_zs();
 GLfloat objective (GLfloat X[DIMS]);
 
+// initialise swarmoptimizer here
+// because some function definitions refer to it
+// TODO make optim an argument of these
 SWARMOPTIMIZER<N_PARTICLES, DIMS, float> optimizer;
 
 /* function definitions */
@@ -678,23 +680,24 @@ int viz_optim(int argc, char** argv)
 
 
   // initialize SWARMOPTIMIZER
-  float init_range = 0.2;
+  float init_range = 0.4;
   float lower_bounds_init_dist[DIMS] = {Xmin[0], Ymin[1]};
   float upper_bounds_init_dist[DIMS] = {Xmin[0] + (Xmax[0]-Xmin[0])*init_range, Ymin[1] + (Ymax[1]-Ymin[1])*init_range};
 
   // HYPERPARAMETERS
   string initialization = "uniform";
-  string update_type = "pso"; // cbo, swarm_grad, pso
-  int merge_time = 1000;
+  string update_type = "swarm_grad"; // cbo, swarm_grad, pso
+  int merge_time = 200;
 
   int K;
   float c1, c2, inertia; // CBO does not use inertia weight
+  inertia = 0.0;
 
   // SWARM_GRAD settings for "alpine0"
-  // inertia = 0.2; // NOTE: ADJUSTABLE PARAMETER
-  // c1 = 0.3; // NOTE: ADJUSTABLE PARAMETER
-  // c2 = 0.1; // NOTE: ADJUSTABLE PARAMETER
-  // K = 2; // swarm_grad reference particles
+  inertia = 0.1; // NOTE: ADJUSTABLE PARAMETER
+  c1 = 0.2; // NOTE: ADJUSTABLE PARAMETER
+  c2 = 0.2; // NOTE: ADJUSTABLE PARAMETER
+  K = 1; // swarm_grad reference particles
 
   // CBO settings for "alpine0"
   // c1 = 0.2; // NOTE: ADJUSTABLE PARAMETER
@@ -702,9 +705,9 @@ int viz_optim(int argc, char** argv)
 
   // PSO settings for "alpine0"
   // In most works, c1 = c2 =: c (= 2)
-  inertia = 0.1; // NOTE: ADJUSTABLE PARAMETER
-  c1 = 0.2; // NOTE: ADJUSTABLE PARAMETER
-  c2 = 0.5; // NOTE: ADJUSTABLE PARAMETER
+  // inertia = 0.1; // NOTE: ADJUSTABLE PARAMETER
+  // c1 = 2.0; // NOTE: ADJUSTABLE PARAMETER
+  // c2 = 2.0; // NOTE: ADJUSTABLE PARAMETER
 
   // initialize the optimizer
   optimizer.init(
@@ -717,14 +720,13 @@ int viz_optim(int argc, char** argv)
       inertia,
       initialization,
       update_type,
-      "max_steps",
-      2000,
+      "max_steps", // convergence criterion: max_steps, plateau
+      2000, // convergence criterion value: number of steps (max/plateau)
       N_GROUPS,
       merge_time,
       objective,
       K
   );
-
 
   glutMainLoop();
 
