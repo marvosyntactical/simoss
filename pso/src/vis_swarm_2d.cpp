@@ -39,7 +39,7 @@ using namespace std;
 
 #define KEY_ESC 27
 
-const char* funcName = "alpine0"; // NOTE: ADJUSTABLE PARAMETER
+const char* funcName = "wellblech"; // NOTE: ADJUSTABLE PARAMETER
 
 // global variables for handling the arcball
 
@@ -86,15 +86,15 @@ static const bool VIZ = true; // TODO implement
 static const int DIMS = 2; // TODO make 1-D vis possible
 
 // const GLfloat grid_size = 20.0f; // NOTE: ADJUSTABLE PARAMETER
-const GLfloat grid_size_x = 150.0f; // NOTE: ADJUSTABLE PARAMETER
-const GLfloat grid_size_y = 150.0f; // NOTE: ADJUSTABLE PARAMETER
+const GLfloat grid_size_x = 100.0f; // NOTE: ADJUSTABLE PARAMETER
+const GLfloat grid_size_y = 100.0f; // NOTE: ADJUSTABLE PARAMETER
 const GLfloat Xmin[] = {-grid_size_x,0.0f, 0.0f, 0.0f};
 const GLfloat Xmax[] = {grid_size_x, 0.0f, 0.0f, 0.0f};
 const GLfloat Ymin[] = {0.0f, -grid_size_y, 0.0f, 0.0f};
 const GLfloat Ymax[] = {0.0f, grid_size_y, 0.0f, 0.0f};
 
-static const GLfloat tile_width_x = 8.0; // NOTE: ADJUSTABLE PARAMETER
-static const GLfloat tile_width_y = 8.0; // NOTE: ADJUSTABLE PARAMETER
+static const GLfloat tile_width_x = 4.0; // NOTE: ADJUSTABLE PARAMETER
+static const GLfloat tile_width_y = 4.0; // NOTE: ADJUSTABLE PARAMETER
 
 const int num_tiles_x = (Xmax[0] - Xmin[0])/tile_width_x;
 const int num_tiles_y = (Ymax[1] - Ymin[1])/tile_width_y;
@@ -110,8 +110,8 @@ GLfloat y;
 /* end function plot parameter setup */
 
 // SWARMOPTIMIZER variables
-static const int N_PARTICLES = 20;
-static const int N_GROUPS = 1;
+static const int N_PARTICLES = 40;
+static const int N_GROUPS = 2;
 GLfloat prtcl_sphere_color[N_GROUPS][4];
 
 // initialize viz toggles
@@ -171,8 +171,8 @@ GLfloat objective (GLfloat X[DIMS]) {
         GLfloat y_comp = y*y - 10 * cos(2.0 * M_PI * y) + 10;
         return x_comp + y_comp;
     } else if (funcName == "wellblech") {
-        GLfloat wobble = 8.0f;
-        return wobble*sin(x) - wobble*cos(y) + exp(y*0.08) + pow(0.2*(x-5.0), 2.0) - pow(0.2*(y-6), 3.0) + pow(0.1*y, 4.0);
+        GLfloat wobble = 2.0f;
+        return wobble*sin(x) - wobble*cos(y) + exp(y*0.04) + exp(0.04*(x-5.0)) - pow(0.04*(y-6), 3.0) + pow(0.01*y, 4.0);
     } else if (funcName == "wobble") {
         GLfloat wobble = 8.0f;
         GLfloat r = wobble*sin(x) - wobble*cos(y) + exp(y) + pow(0.2*(x-5.0), 2.0); // -pow(0.05*x, 6.0);
@@ -672,7 +672,7 @@ int viz_optim(int argc, char** argv)
   float upper_bounds[DIMS]; // uniform init dist upper bounds
   for (int d=0; d < DIMS; d++) {
 	  // float bound = function_bounds[function_name];
-	  float bound = 999999; // 51.2
+	  float bound = 50; // 51.2
 	  lower_bounds[d] = -bound;
 	  upper_bounds[d] = bound;
   }
@@ -686,7 +686,7 @@ int viz_optim(int argc, char** argv)
 
   // HYPERPARAMETERS
   string initialization = "uniform";
-  string update_type = "swarm_grad"; // cbo, swarm_grad, pso
+  string update_type = "pso"; // cbo, swarm_grad, pso
   int merge_time = 200;
 
   int K;
@@ -694,20 +694,20 @@ int viz_optim(int argc, char** argv)
   inertia = 0.0;
 
   // SWARM_GRAD settings for "alpine0"
-  inertia = 0.1; // NOTE: ADJUSTABLE PARAMETER
-  c1 = 0.2; // NOTE: ADJUSTABLE PARAMETER
-  c2 = 0.2; // NOTE: ADJUSTABLE PARAMETER
-  K = 1; // swarm_grad reference particles
+  // inertia = 0.2; // NOTE: ADJUSTABLE PARAMETER
+  // c1 = 0.1; // NOTE: ADJUSTABLE PARAMETER
+  // c2 = 0.5; // NOTE: ADJUSTABLE PARAMETER
+  // K = 1; // swarm_grad reference particles
 
   // CBO settings for "alpine0"
-  // c1 = 0.2; // NOTE: ADJUSTABLE PARAMETER
+  // c1 = 0.3; // NOTE: ADJUSTABLE PARAMETER
   // c2 = 0.5; // NOTE: ADJUSTABLE PARAMETER
 
   // PSO settings for "alpine0"
   // In most works, c1 = c2 =: c (= 2)
-  // inertia = 0.1; // NOTE: ADJUSTABLE PARAMETER
-  // c1 = 2.0; // NOTE: ADJUSTABLE PARAMETER
-  // c2 = 2.0; // NOTE: ADJUSTABLE PARAMETER
+  inertia = 0.1; // NOTE: ADJUSTABLE PARAMETER
+  c1 = 2.0; // NOTE: ADJUSTABLE PARAMETER
+  c2 = 2.0; // NOTE: ADJUSTABLE PARAMETER
 
   // initialize the optimizer
   optimizer.init(
