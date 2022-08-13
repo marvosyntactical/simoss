@@ -16,10 +16,10 @@ LDFLAGS     = -lglut -lGL -lGLU -lm
 #LDFLAGS    = -framework AGL -framework GLUT -framework OpenGL -framework Cocoa
 
 
-MYEXECUTABLE = Vis2D
-MYOBJECTS   = vis_swarm_2d.o
+MYEXECUTABLE = Bench
+MYOBJECTS   = benchmark.o
 
-$(MYEXECUTABLE): $(MYOBJECTS) Makefile
+$(MYEXECUTABLE): $(MYOBJECTS) Benchfile
 	$(CC) $(MYOBJECTS) $(LDFLAGS) -o $(MYEXECUTABLE)
 	strip $(MYEXECUTABLE)
 	./$(MYEXECUTABLE)
@@ -36,5 +36,5 @@ clean:
 
 .PHONY: run clean
 
-# What I actually currently use to compile:
+# NOTE: Try using this to compile if make doesnt work:
 # g++ -c -W -lglut -lGL -lGLU -lm -std=gnu++17 -o prog.o main.c -fpermissive

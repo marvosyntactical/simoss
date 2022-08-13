@@ -16,10 +16,10 @@ LDFLAGS     = -lglut -lGL -lGLU -lm
 #LDFLAGS    = -framework AGL -framework GLUT -framework OpenGL -framework Cocoa
 
 
-MYEXECUTABLE = Bench
-MYOBJECTS   = benchmark.o
+MYEXECUTABLE = Vis2D
+MYOBJECTS   = vis_swarm_2d.o
 
-$(MYEXECUTABLE): $(MYOBJECTS) Makefile
+$(MYEXECUTABLE): $(MYOBJECTS) Vizfile
 	$(CC) $(MYOBJECTS) $(LDFLAGS) -o $(MYEXECUTABLE)
 	strip $(MYEXECUTABLE)
 	./$(MYEXECUTABLE)

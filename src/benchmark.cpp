@@ -114,7 +114,7 @@ int main( int argc, char** argv )
 	  update_type = argv[1];
 	 
   } else {
-	  update_type = "swarm_grad";
+	  update_type = "pso";
   }
 
   float inertia; // initialize always even though CBO does not use inertia weight

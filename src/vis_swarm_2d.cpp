@@ -649,11 +649,20 @@ void init_glut() {
 
 int viz_optim(int argc, char** argv)
 {
+  string update_type = "pso"; // cbo, swarm_grad, pso
   glutInit(&argc, argv);
   glutInitDisplayMode( GLUT_DOUBLE | GLUT_DEPTH | GLUT_RGBA );
   glutInitWindowSize ( screenWidth, screenHeight );
   glutInitWindowPosition( 0, 0 );
-  glutCreateWindow("A Particle swarm finding the minimum of some function");
+
+  // Make a somewhat informative title.
+  string title = "A Particle swarm finding the minimum of ";
+  string func_name = funcName; // convert from char* to string
+  title.append(func_name);
+  title.append("using the update type: ");
+  title.append(update_type);
+  const char * t = title.c_str();
+  glutCreateWindow(t);
 
   init_glut();
   glutReshapeFunc( reshape );
@@ -686,7 +695,6 @@ int viz_optim(int argc, char** argv)
 
   // HYPERPARAMETERS
   string initialization = "uniform";
-  string update_type = "pso"; // cbo, swarm_grad, pso
   int merge_time = 200;
 
   int K;

@@ -1,7 +1,3 @@
-# PSO in GL
-
-See Makefile for compilation instructions.
-
 
 ### Optimizations
 
