@@ -86,8 +86,8 @@ static const bool VIZ = true; // TODO implement
 static const int DIMS = 2; // TODO make 1-D vis possible
 
 // const GLfloat grid_size = 20.0f; // NOTE: ADJUSTABLE PARAMETER
-const GLfloat grid_size_x = 100.0f; // NOTE: ADJUSTABLE PARAMETER
-const GLfloat grid_size_y = 100.0f; // NOTE: ADJUSTABLE PARAMETER
+const GLfloat grid_size_x = 150.0f; // NOTE: ADJUSTABLE PARAMETER
+const GLfloat grid_size_y = 150.0f; // NOTE: ADJUSTABLE PARAMETER
 const GLfloat Xmin[] = {-grid_size_x,0.0f, 0.0f, 0.0f};
 const GLfloat Xmax[] = {grid_size_x, 0.0f, 0.0f, 0.0f};
 const GLfloat Ymin[] = {0.0f, -grid_size_y, 0.0f, 0.0f};
@@ -110,8 +110,8 @@ GLfloat y;
 /* end function plot parameter setup */
 
 // SWARMOPTIMIZER variables
-static const int N_PARTICLES = 40;
-static const int N_GROUPS = 2;
+static const int N_PARTICLES = 10;
+static const int N_GROUPS = 1;
 GLfloat prtcl_sphere_color[N_GROUPS][4];
 
 // initialize viz toggles
@@ -171,8 +171,8 @@ GLfloat objective (GLfloat X[DIMS]) {
         GLfloat y_comp = y*y - 10 * cos(2.0 * M_PI * y) + 10;
         return x_comp + y_comp;
     } else if (funcName == "wellblech") {
-        GLfloat wobble = 2.0f;
-        return wobble*sin(x) - wobble*cos(y) + exp(y*0.04) + exp(0.04*(x-5.0)) - pow(0.04*(y-6), 3.0) + pow(0.01*y, 4.0);
+        GLfloat wobble = 4.0f;
+        return wobble*sin(x) - wobble*cos(y) + 0.004*pow(y+50, 2) + 0.001*pow(x+50, 2);
     } else if (funcName == "wobble") {
         GLfloat wobble = 8.0f;
         GLfloat r = wobble*sin(x) - wobble*cos(y) + exp(y) + pow(0.2*(x-5.0), 2.0); // -pow(0.05*x, 6.0);
@@ -500,14 +500,14 @@ void draw_coordinate_system(float unit)
 void draw_particles()
 {
   GLUquadricObj *qobj = gluNewQuadric();
-  float sphere_radius = 2.0;
+  float sphere_radius = 4.0;
 
   for (int i = 0; i < N_PARTICLES; i++) {
       int g = prtcl_group(i);
       glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, prtcl_sphere_color[g]);
 
       glPushMatrix();
-      glTranslatef(optimizer.x[i][0], optimizer.x[i][1], optimizer.z[i] + sphere_radius + 0.5);
+      glTranslatef(optimizer.x[i][0], optimizer.x[i][1], optimizer.z[i]);
       gluSphere(qobj,sphere_radius,50,50);
       glPopMatrix();
 
@@ -659,7 +659,7 @@ int viz_optim(int argc, char** argv)
   string title = "A Particle swarm finding the minimum of ";
   string func_name = funcName; // convert from char* to string
   title.append(func_name);
-  title.append("using the update type: ");
+  title.append(" using the update type: ");
   title.append(update_type);
   const char * t = title.c_str();
   glutCreateWindow(t);
@@ -677,11 +677,11 @@ int viz_optim(int argc, char** argv)
   set_zs();
   set_prtcl_colors(N_GROUPS);
 
-  float lower_bounds[DIMS]; // uniform init dist lower bounds
-  float upper_bounds[DIMS]; // uniform init dist upper bounds
+  float lower_bounds[DIMS];
+  float upper_bounds[DIMS];
   for (int d=0; d < DIMS; d++) {
 	  // float bound = function_bounds[function_name];
-	  float bound = 50; // 51.2
+	  float bound = 9999999; // 51.2
 	  lower_bounds[d] = -bound;
 	  upper_bounds[d] = bound;
   }
@@ -690,8 +690,8 @@ int viz_optim(int argc, char** argv)
 
   // initialize SWARMOPTIMIZER
   float init_range = 0.4;
-  float lower_bounds_init_dist[DIMS] = {Xmin[0], Ymin[1]};
-  float upper_bounds_init_dist[DIMS] = {Xmin[0] + (Xmax[0]-Xmin[0])*init_range, Ymin[1] + (Ymax[1]-Ymin[1])*init_range};
+  float lower_bounds_init_dist[DIMS] = {Xmax[0], Ymax[1]};
+  float upper_bounds_init_dist[DIMS] = {Xmax[0] - (Xmax[0]-Xmin[0])*init_range, Ymax[1] - (Ymax[1]-Ymin[1])*init_range};
 
   // HYPERPARAMETERS
   string initialization = "uniform";
@@ -702,20 +702,22 @@ int viz_optim(int argc, char** argv)
   inertia = 0.0;
 
   // SWARM_GRAD settings for "alpine0"
-  // inertia = 0.2; // NOTE: ADJUSTABLE PARAMETER
-  // c1 = 0.1; // NOTE: ADJUSTABLE PARAMETER
-  // c2 = 0.5; // NOTE: ADJUSTABLE PARAMETER
-  // K = 1; // swarm_grad reference particles
-
-  // CBO settings for "alpine0"
-  // c1 = 0.3; // NOTE: ADJUSTABLE PARAMETER
-  // c2 = 0.5; // NOTE: ADJUSTABLE PARAMETER
-
-  // PSO settings for "alpine0"
-  // In most works, c1 = c2 =: c (= 2)
-  inertia = 0.1; // NOTE: ADJUSTABLE PARAMETER
-  c1 = 2.0; // NOTE: ADJUSTABLE PARAMETER
-  c2 = 2.0; // NOTE: ADJUSTABLE PARAMETER
+  if (update_type == "swarm_grad") {
+	  inertia = 0.2; // NOTE: ADJUSTABLE PARAMETER
+	  c1 = 0.5; // NOTE: ADJUSTABLE PARAMETER
+	  c2 = 0.0; // NOTE: ADJUSTABLE PARAMETER
+	  K = 3; // swarm_grad reference particles
+  } else if (update_type == "cbo") {
+	  // CBO settings for "alpine0"
+	  c1 = 0.3; // NOTE: ADJUSTABLE PARAMETER
+	  c2 = 0.5; // NOTE: ADJUSTABLE PARAMETER
+  } else if (update_type == "pso") {
+	  // PSO settings for "alpine0"
+	  // In most works, c1 = c2 =: c (= 2)
+	  inertia = 0.5; // NOTE: ADJUSTABLE PARAMETER
+	  c1 = 1.0; // NOTE: ADJUSTABLE PARAMETER
+	  c2 = 1.0; // NOTE: ADJUSTABLE PARAMETER
+  }
 
   // initialize the optimizer
   optimizer.init(

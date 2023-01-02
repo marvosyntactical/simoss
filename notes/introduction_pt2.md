@@ -2,7 +2,7 @@
 
 ## Acceptance/Rejection Method
 
-Unnormalized positive target density: $f:\mathbb{R}\to[0,-\inf], f\in L^1$
+Unnormalized positive target density: $f:\mathbb{R}\to[0,\inf], f\in L^1$
 
 aim: simulate random numbers from $X\sim\hat{f}=\frac{f}{||f||\_1}$
 
@@ -12,14 +12,14 @@ Sketch: See introductory slides
 ### Algorithm For Acceptance-Rejection-Method
 
 ```python3
-def u = z, y = 0
-while u > f(y)/g(y9:
+def u = y = 0
+while u > f(y)/g(y):
     generate u = Uniform([0,1])
-    generate y  = inversion(g, u)
+    generate y  = g_inverse(u)
 set x = y
 ```
-* each loop is bernoulli-exp with $p=\frac{||f||\_1}{||g||\_1}$
-* therefore loop length is geometrically distributed: $\mathbb{P}(N=k)(1-p)^{k-1}\cdot p$
+* while-check is always bernoulli-distributed with $p=\frac{||f||\_1}{||g||\_1}$
+* therefore loop length is geometrically distributed: $\mathbb{P}(N=k) = (1-p)^{k-1}\cdot p$
 * therefore expected loop time is $\mathbb{E}[N]=\frac{1}{p} = \frac{||g||\_1}{||f||\_1}$
 
 ## Example: Gaussian g for generation of Cauchy f

@@ -115,7 +115,7 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 			// TODO
 			// cout<< "Not implemented: center spawning" << endl;
 			exit(1);
-			    } else {
+		    } else {
 			// cout<< "Allowed values of initialization are 'random', 'center'. Got " << initialization << endl;
 			exit(1);
 		    }
@@ -128,11 +128,10 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 		    for (int i = 0; i < N; i++) {
 			x_i = x[i]; // access particle position vector only once
 			zi = this->objective(x_i); // evaluate objective function
-			z[i] = zi; // (save function value for visualisation)
 			// update personal best if improved
 			if (zi < pbests[i][D]) {
 			    for (int dim = 0; dim < D; dim++) {
-				    pbests[i][dim] = x_i[dim];
+				pbests[i][dim] = x_i[dim];
 			    }
 			    pbests[i][D] = zi;
 			}
@@ -148,6 +147,12 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 		    if (not gbest_updated) plateau_steps += 1;
 		}
 
+		void update_zs() {
+		    for (int i = 0; i < N; i++) {
+			z[i] = this->objective(x[i]);
+		    }
+		}
+
 		// advance system one step
 		void update_pos() {
 		    if (update_type == "pso") {
@@ -158,6 +163,8 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 			update_pos_swarm_grad();
 		    }
 		    // TODO move application of clamp_pos here
+
+		    update_zs();
 		}
 
 		void update_pos_pso() {
@@ -195,13 +202,13 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 		void update_pos_swarm_grad() {
 		    // swarm grad update
 		    
-		    bool sub_swarms = false; // TODO make parameter of optimizer.init
+		    bool sub_swarms = true; // TODO make parameter of optimizer.init
 		    if (not sub_swarms) {
 		    	shuffle(PERM.begin(), PERM.end(), generator);
 		    }
 		    
 		    // upper_bounds_init_dist and lower_bounds_init_dist thresholds on difference (~= gradient clipping)
-		    real upper_thresh = 10.0;
+		    real upper_thresh = 20.0;
 		    real lower_thresh = -0.0; // e.g. lower_thresh = (- upper_bounds_init_dist) or = 0.0
 		    real mult = 0.1; // update i by this much if its better
 		    for (int i = 0; i < N; i++) {
@@ -215,13 +222,13 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 			for (int k = 0; k < K; k++) {
 				int j = i;
 				if (not sub_swarms) {
-					// while (j == i) {
-					// 	j = this->discrete_dist(generator) % N;
-					// }
-					j = PERM[i];
+					while (j == i) {
+						j = this->discrete_dist(generator) % N;
+					}
+					// j = PERM[i];
 				} else {
 					if (t < merge_time) {
-					    j = (i + k + 1) % group_size+int(i/group_size);
+					    j = (i + k + 1) % group_size + int(i/group_size);
 					} else {
 					    if (t == merge_time && i == 0) {
 						// cout<< "MERGING SUBSWARMS at t=" << t << endl;
@@ -234,9 +241,10 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 
 				// calculate cost difference with comparison particle j
 				real dk = z[i] - z[j];
-			        cout<< "dk: \t" << dk << endl;
+			        cout << "dk: \t" << dk << endl;
 				real dk_clip = max(min(dk, upper_thresh), lower_thresh);
 				if (dk < 0) {
+				    // like leaky relu: less steep slope
 				    dk_clip *= mult;
 				}
 				Diff[k] = dk_clip;
@@ -245,19 +253,17 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 		        real cumulative_grad = 0;
 		        real hnorm = 0;
 			for (int dim=0; dim < D; dim++) {
-			    for (int k=0; k< K; k++) {
-				    cout<< "Diff[k]: \t" << Diff[k] << endl;
-				    cout<< "J[k]: \t" << J[k] << endl;
-				    cout<< "i: \t" << i << endl;
+			    for (int k=0; k < K; k++) {
+				    cout << "Diff[k]: \t" << Diff[k] << endl;
+				    cout << "J[k]: \t" << J[k] << endl;
+				    cout << "i: \t" << i << endl;
 				    cumulative_grad += Diff[k];
 				    hnorm += pow((x[J[k]][dim] - x[i][dim]), 2.0);
 			    }
-
-
 			}
 			real eps = 1;
-		        cumulative_grad /= min(sqrt(hnorm), eps);
-			real lr = 0.001;
+		        // cumulative_grad /= max(sqrt(hnorm), eps);
+			real lr = 1.0;
 
 			for (int dim=0; dim < D; dim++) {
 			    // grad ~= (f(x+h)-f(x))/|h| // with h = x[j]-x[i]
@@ -273,16 +279,14 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 			    v_inertial = inertia * v[i][dim];
 			    v_diffuse = c2 * r2;
 
-			    cout<< "c1: \t" << c1 << endl;
-			    cout<< "r1: \t" << r1 << endl;
-			    cout<< "K: \t" << K << endl;
-			    cout<< "cumulative_grad: \t" << cumulative_grad << endl;
+			    cout << "c1: \t" << c1 << endl;
+			    cout << "r1: \t" << r1 << endl;
+			    cout << "K: \t" << K << endl;
+			    cout << "cumulative_grad: \t" << cumulative_grad << endl;
 
-			    cout<< "v_inertial: \t" << v_inertial << endl;
-			    cout<< "v_attract: \t" << v_attract << endl;
-			    cout<< "v_diffuse: \t" << v_diffuse << endl;
-
-
+			    cout << "v_inertial: \t" << v_inertial << endl;
+			    cout << "v_attract: \t" << v_attract << endl;
+			    cout << "v_diffuse: \t" << v_diffuse << endl;
 
 			    v_i_d = v_inertial + v_attract + v_diffuse;
 
@@ -409,7 +413,7 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 		    this->group_size = int(N/n_groups);
 		    this->merge_time = merge_time;
 		    this->K = K;
-		    vector<int> PERM(N,0);
+		    vector<int> PERM(N, 0);
 		    // random permutation of i=1,...,N
 		    for (int l=0; l < N; l++) {
 		    	// range of first N numbers starting at 0
@@ -440,7 +444,6 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 			this->upper_bounds[dim] = upper_bounds[dim];
 			softmax[dim] = 0;
 		    }
-
 
 		    x = new real*[N];
 		    v = new real*[N];
