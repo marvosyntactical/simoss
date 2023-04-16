@@ -22,8 +22,8 @@ using namespace std;
 #define EULER 2.71828
 
 // OBJECTIVE FUNCTION SETUP
-const char* function_name = "rastrigin"; // NOTE: ADJUSTABLE OBJECTIVE PARAMETER
-static const int DIMS = 20; // NOTE: ADJUSTABLE OBJECTIVE PARAMETER
+const char* function_name = "parabola"; // NOTE: ADJUSTABLE OBJECTIVE PARAMETER
+static const int DIMS = 2; // NOTE: ADJUSTABLE OBJECTIVE PARAMETER
 
 static const bool VISUALIZE = false;
 
@@ -81,6 +81,13 @@ numtype objective (numtype X[D]) {
 
     } else if (function_name == "scheffer") {
         return 2; // TODO 
+    } else if (function_name == "parabola") {
+        numtype sum = 0;
+        numtype exponent = 2;
+        for (int d = 0; d < D; d++) {
+            sum += pow(X[d], exponent);
+        }
+        return sum;
     }
     return 0.0;
 }
@@ -110,6 +117,7 @@ int main( int argc, char** argv )
   string initialization = "uniform"; // uniform: lower[d] < x[i][d] < upper[d] for all i
   int merge_time = 200; // swarm grad: merge groups after this many steps
   string update_type; // take update type as arg // OPTIONS: cbo, swarm_grad, pso
+                      //
   if (argc > 1) {
 	  update_type = argv[1];
 	 
@@ -120,6 +128,7 @@ int main( int argc, char** argv )
   float inertia; // initialize always even though CBO does not use inertia weight
   float c1, c2; // correspond to lambda, sigma in case of CBO
   int K = 1; // swarm_grad reference particles
+  float temp = 1;
 
   function<float (float*)> obj = objective<DIMS, float>;
 
@@ -140,9 +149,13 @@ int main( int argc, char** argv )
   
     // PSO settings for "alpine0"
     // In most works, c1 = c2 =: c (= 2)
-    inertia = 0.2; // NOTE: ADJUSTABLE PARAMETER
-    c1 = 0.5; // NOTE: ADJUSTABLE PARAMETER
-    c2 = 0.5; // NOTE: ADJUSTABLE PARAMETER
+    inertia = 0.3; // NOTE: ADJUSTABLE PARAMETER
+    c1 = 2.0; // NOTE: ADJUSTABLE PARAMETER
+    c2 = 2.0; // NOTE: ADJUSTABLE PARAMETER
+  } else if (update_type == "cbs") {
+    temp = 30;
+    // c2 = 1.0; // optimization mode
+    c2 = 1.0/(1.0+temp); // sampling mode
   } else {
     cout << "Not implemented: update_type = " << update_type << endl;
     return 1;
@@ -172,6 +185,7 @@ int main( int argc, char** argv )
       c1,
       c2,
       inertia,
+      temp,
       initialization,
       update_type,
       "plateau",

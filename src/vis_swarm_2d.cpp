@@ -110,8 +110,8 @@ GLfloat y;
 /* end function plot parameter setup */
 
 // SWARMOPTIMIZER variables
-static const int N_PARTICLES = 10;
-static const int N_GROUPS = 1;
+static const int N_PARTICLES = 20;
+static const int N_GROUPS = 5;
 GLfloat prtcl_sphere_color[N_GROUPS][4];
 
 // initialize viz toggles
@@ -649,18 +649,21 @@ void init_glut() {
 
 int viz_optim(int argc, char** argv)
 {
-  string update_type = "pso"; // cbo, swarm_grad, pso
+  string update_type = "swarm_grad"; // cbs, cbo, swarm_grad, pso
   glutInit(&argc, argv);
   glutInitDisplayMode( GLUT_DOUBLE | GLUT_DEPTH | GLUT_RGBA );
   glutInitWindowSize ( screenWidth, screenHeight );
   glutInitWindowPosition( 0, 0 );
 
   // Make a somewhat informative title.
-  string title = "A Particle swarm finding the minimum of ";
-  string func_name = funcName; // convert from char* to string
+  string title = "Finding the minimum of '";
+  string func_name = funcName; // converts from char* to string
   title.append(func_name);
-  title.append(" using the update type: ");
+  title.append("' using the update type: '");
   title.append(update_type);
+  title.append("' ");
+
+
   const char * t = title.c_str();
   glutCreateWindow(t);
 
@@ -695,29 +698,37 @@ int viz_optim(int argc, char** argv)
 
   // HYPERPARAMETERS
   string initialization = "uniform";
-  int merge_time = 200;
+  int merge_time = 100;
 
   int K;
   float c1, c2, inertia; // CBO does not use inertia weight
   inertia = 0.0;
+  float temp = 30.0;
 
   // SWARM_GRAD settings for "alpine0"
   if (update_type == "swarm_grad") {
-	  inertia = 0.2; // NOTE: ADJUSTABLE PARAMETER
-	  c1 = 0.5; // NOTE: ADJUSTABLE PARAMETER
-	  c2 = 0.0; // NOTE: ADJUSTABLE PARAMETER
-	  K = 3; // swarm_grad reference particles
+	  inertia = 0.0; // NOTE: ADJUSTABLE PARAMETER
+	  c1 = 2.0; // NOTE: ADJUSTABLE PARAMETER
+	  c2 = 0.1; // NOTE: ADJUSTABLE PARAMETER
+	  K = 1; // swarm_grad reference particles
   } else if (update_type == "cbo") {
 	  // CBO settings for "alpine0"
-	  c1 = 0.3; // NOTE: ADJUSTABLE PARAMETER
-	  c2 = 0.5; // NOTE: ADJUSTABLE PARAMETER
+	  c1 = 0.5; // NOTE: ADJUSTABLE PARAMETER
+	  c2 = 0.8; // NOTE: ADJUSTABLE PARAMETER
+          temp = 30.0;
   } else if (update_type == "pso") {
 	  // PSO settings for "alpine0"
 	  // In most works, c1 = c2 =: c (= 2)
-	  inertia = 0.5; // NOTE: ADJUSTABLE PARAMETER
-	  c1 = 1.0; // NOTE: ADJUSTABLE PARAMETER
-	  c2 = 1.0; // NOTE: ADJUSTABLE PARAMETER
-  }
+	  inertia = 0.1; // NOTE: ADJUSTABLE PARAMETER
+	  c1 = 2.0; // NOTE: ADJUSTABLE PARAMETER
+	  c2 = 2.0; // NOTE: ADJUSTABLE PARAMETER
+  } else if (update_type == "cbs") {
+          // temp is beta in CBS paper
+          temp = 30.0;
+          // c2 is lambda in CBS paper
+          // c2 = 1/(1 + temp); // sampling mode
+          c2 = 1; // optimization mode
+  };
 
   // initialize the optimizer
   optimizer.init(
@@ -728,6 +739,7 @@ int viz_optim(int argc, char** argv)
       c1,
       c2,
       inertia,
+      temp,
       initialization,
       update_type,
       "max_steps", // convergence criterion: max_steps, plateau
