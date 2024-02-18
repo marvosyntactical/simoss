@@ -22,8 +22,8 @@ using namespace std;
 #define EULER 2.71828
 
 // OBJECTIVE FUNCTION SETUP
-const char* function_name = "parabola"; // NOTE: ADJUSTABLE OBJECTIVE PARAMETER
-static const int DIMS = 2; // NOTE: ADJUSTABLE OBJECTIVE PARAMETER
+const char* function_name = "wellblech"; // NOTE: ADJUSTABLE OBJECTIVE PARAMETER
+static const int DIMS = 10; // NOTE: ADJUSTABLE OBJECTIVE PARAMETER
 
 static const bool VISUALIZE = false;
 
@@ -62,6 +62,19 @@ numtype objective (numtype X[D]) {
 		sum += Xd*Xd - 10*cos(2*PI*Xd) + 10;
 	}
         return 1/10*D+sum + C;
+    } else if (function_name == "wellblech") {
+        numtype wobble = 16.0f;
+        numtype r = 0;
+        for (int d=0; d< D; d++) {
+            r += wobble*sin(X[d]*0.1) + 0.004*pow(X[d]+pow(-1,d)*50, 2);
+        }
+        return r;
+    } else if (function_name == "knownMin") {
+        numtype r = 0;
+        for (int d=0; d< D; d++) {
+            r += 0.004*pow(X[d]+pow(-1, d)*50, 2);
+        }
+        return r;
     } else if (function_name == "ackley") {
 	numtype B, C;
 	B = 0;
@@ -119,10 +132,9 @@ int main( int argc, char** argv )
   string update_type; // take update type as arg // OPTIONS: cbo, swarm_grad, pso
                       //
   if (argc > 1) {
-	  update_type = argv[1];
-	 
+      update_type = argv[1];
   } else {
-	  update_type = "pso";
+      update_type = "pso"; // pso, cbo, cbs, swarm_grad
   }
 
   float inertia; // initialize always even though CBO does not use inertia weight
@@ -136,9 +148,10 @@ int main( int argc, char** argv )
   if (update_type == "swarm_grad") {
     // SWARM_GRAD settings for "alpine0"
     // inertia = 0.1; // NOTE: ADJUSTABLE PARAMETER
-    c1 = 0.1; // NOTE: ADJUSTABLE PARAMETER
-    c2 = 0.1; // NOTE: ADJUSTABLE PARAMETER
+    c1 = 4.0; // NOTE: ADJUSTABLE PARAMETER
+    c2 = 0.8; // NOTE: ADJUSTABLE PARAMETER
     inertia = 0.1;
+    K = 1;
   } else if (update_type == "cbo") {
 
     // CBO settings for "alpine0"
@@ -203,10 +216,7 @@ int main( int argc, char** argv )
   int steps_taken;
 
   if (VISUALIZE && DIMS == 2) {
-    // while (not optimizer.is_converged()) {
-  
-    // }
-  
+    // see vis_swarm_2d.cpp
   } else {
     // run optimization (bind triple outputs to output variables)
     // cout << "running optimization ..." << endl;

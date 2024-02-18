@@ -222,7 +222,7 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 		    // upper_bounds_init_dist and lower_bounds_init_dist thresholds on difference (~= gradient clipping)
 		    real upper_thresh = 400.0;
 		    real lower_thresh = -400; // e.g. lower_thresh = (- upper_bounds_init_dist) or = 0.0
-		    real mult = 0.01; // update i by this much if its better
+		    real mult = 0.00; // update i by this much if its better
 		    for (int i = 0; i < N; i++) {
 			// particle i chooses K comparison particles j=1,...,K
 			real numerator = 0;
@@ -243,7 +243,7 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 					    j = (i + k + 1) % group_size + int(i/group_size);
 					} else {
 					    if (t == merge_time && i == 0) {
-						// cout<< "MERGING SUBSWARMS at t=" << t << endl;
+						cout<< "MERGING SUBSWARMS at t=" << t << endl;
 					    }
 					    j = (i + k + 1) % N;
 					}
@@ -261,8 +261,9 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 				}
 				Diff[k] = dk_clip;
 			}
+                        
+                        // calculate help vector norm (vector pointing from xi to xJk)
 
-		        real cumulative_grad = 0;
 		        real hnorm = 0;
 			for (int dim=0; dim < D; dim++) {
 			    for (int k=0; k < K; k++) {
@@ -270,13 +271,10 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 				    cout << "J[k]: \t" << J[k] << endl;
 				    cout << "i: \t" << i << endl;
 
-				    cumulative_grad += Diff[k];
 				    hnorm += pow((x[J[k]][dim] - x[i][dim]), 2.0);
 			    }
 			}
-			real eps = 1;
-		        // hnorm /= max(sqrt(hnorm), eps);
-		        hnorm /= sqrt(hnorm);
+		        hnorm = sqrt(hnorm); // 2-norm
 
 			for (int dim=0; dim < D; dim++) {
 
@@ -286,8 +284,8 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 			    for (int k=0; k < K; k++) {
 				    // grad ~= (f(x+h)-f(x))/|h| // with h = x[j]-x[i]
 				    // go along average sampled "gradient" 
-                                    // real diff = (x[J[k]][dim] - x[i][dim]);
-				    v_attract = c1 * r1 * (1/K) * (Diff[k] / hnorm);
+                                    real diff = x[J[k]][dim] - x[i][dim];
+				    v_attract = c1 * r1 * (1/K) * diff * (Diff[k] / hnorm);
 			    }
 
 
@@ -299,7 +297,6 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 			    cout << "c1: \t" << c1 << endl;
 			    cout << "r1: \t" << r1 << endl;
 			    cout << "K: \t" << K << endl;
-			    cout << "cumulative_grad: \t" << cumulative_grad << endl;
 
 			    cout << "v_inertial: \t" << v_inertial << endl;
 			    cout << "v_attract: \t" << v_attract << endl;
