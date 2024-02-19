@@ -225,7 +225,7 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 		    real mult = 0.00; // update i by this much if its better
 		    for (int i = 0; i < N; i++) {
 			// particle i chooses K comparison particles j=1,...,K
-			real numerator = 0;
+                        //
 			// reference particle array
 			int* J = new int[K];
 			// array of difference in cost to each reference particle
@@ -253,7 +253,7 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 
 				// calculate cost difference with comparison particle j
 				real dk = z[i] - z[j];
-			        cout << "dk: \t" << dk << endl;
+			        // cout << "dk: \t" << dk << endl;
 				real dk_clip = max(min(dk, upper_thresh), lower_thresh);
 				if (dk < 0) {
 				    // like leaky relu: less steep slope
@@ -267,11 +267,11 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 		        real hnorm = 0;
 			for (int dim=0; dim < D; dim++) {
 			    for (int k=0; k < K; k++) {
-				    cout << "Diff[k]: \t" << Diff[k] << endl;
-				    cout << "J[k]: \t" << J[k] << endl;
-				    cout << "i: \t" << i << endl;
+				    // cout << "Diff[k]: \t" << Diff[k] << endl;
+				    // cout << "J[k]: \t" << J[k] << endl;
+				    // cout << "i: \t" << i << endl;
 
-				    hnorm += pow((x[J[k]][dim] - x[i][dim]), 2.0);
+				    hnorm += pow(x[J[k]][dim] - x[i][dim], 2.0);
 			    }
 			}
 		        hnorm = sqrt(hnorm); // 2-norm
@@ -294,13 +294,13 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 			    v_inertial = inertia * v[i][dim];
 			    v_diffuse = c2 * r2;
 
-			    cout << "c1: \t" << c1 << endl;
-			    cout << "r1: \t" << r1 << endl;
-			    cout << "K: \t" << K << endl;
+			    // cout << "c1: \t" << c1 << endl;
+			    // cout << "r1: \t" << r1 << endl;
+			    // cout << "K: \t" << K << endl;
 
-			    cout << "v_inertial: \t" << v_inertial << endl;
-			    cout << "v_attract: \t" << v_attract << endl;
-			    cout << "v_diffuse: \t" << v_diffuse << endl;
+			    // cout << "v_inertial: \t" << v_inertial << endl;
+			    // cout << "v_attract: \t" << v_attract << endl;
+			    // cout << "v_diffuse: \t" << v_diffuse << endl;
 
 			    v_i_d = v_inertial + v_attract + v_diffuse;
 

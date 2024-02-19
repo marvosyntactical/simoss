@@ -172,7 +172,7 @@ GLfloat objective (GLfloat X[DIMS]) {
         return x_comp + y_comp;
     } else if (funcName == "wellblech") {
         GLfloat wobble = 16.0f;
-        return wobble*sin(x*0.05) - wobble*cos(y*0.1) + 0.004*pow(y+50, 2) + 0.001*pow(x+50, 2);
+        return wobble*sin(x*0.05) - wobble*cos(y*0.1) + 0.004*pow(y+50, 2) + 0.0000001*pow(x+50, 4) - 0.001*pow(x, 2);
     } else if (funcName == "wobble") {
         GLfloat wobble = 8.0f;
         GLfloat r = wobble*sin(x) - wobble*cos(y) + exp(y) + pow(0.2*(x-5.0), 2.0); // -pow(0.05*x, 6.0);
@@ -707,9 +707,9 @@ int viz_optim(int argc, char** argv)
 
   // SWARM_GRAD settings for "alpine0"
   if (update_type == "swarm_grad") {
-	  inertia = 0.1; // NOTE: ADJUSTABLE PARAMETER
+	  inertia = 0.0; // NOTE: ADJUSTABLE PARAMETER
 	  c1 = 4.0; // NOTE: ADJUSTABLE PARAMETER
-	  c2 = 0.80; // NOTE: ADJUSTABLE PARAMETER
+	  c2 = 0.9; // NOTE: ADJUSTABLE PARAMETER
 	  K = 1; // swarm_grad reference particles
   } else if (update_type == "cbo") {
 	  // CBO settings for "alpine0"

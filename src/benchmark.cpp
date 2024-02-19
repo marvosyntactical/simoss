@@ -22,8 +22,8 @@ using namespace std;
 #define EULER 2.71828
 
 // OBJECTIVE FUNCTION SETUP
-const char* function_name = "wellblech"; // NOTE: ADJUSTABLE OBJECTIVE PARAMETER
-static const int DIMS = 10; // NOTE: ADJUSTABLE OBJECTIVE PARAMETER
+const char* function_name = "salomon"; // NOTE: ADJUSTABLE OBJECTIVE PARAMETER
+static const int DIMS = 20; // NOTE: ADJUSTABLE OBJECTIVE PARAMETER
 
 static const bool VISUALIZE = false;
 
@@ -62,6 +62,27 @@ numtype objective (numtype X[D]) {
 		sum += Xd*Xd - 10*cos(2*PI*Xd) + 10;
 	}
         return 1/10*D+sum + C;
+    } else if (function_name == "salomon") {
+        numtype sum = 1;
+        numtype squares = 0;
+	for (int d = 0; d < D; d++) {
+            squares += pow(X[d],2);
+        }
+        squares = sqrt(squares);
+        sum += 0.1*squares - cos(2*3.14159*squares);
+        return sum;
+    } else if (function_name == "griewank") {
+        numtype sum = 1;
+        numtype summands = 0;
+        numtype factors = 1;
+	for (int d = 0; d < D; d++) {
+            summands += pow(X[d],2);
+            factors *= cos(X[d]/(d+1));
+        }
+        summands /= 4000;
+
+        sum += summands + factors;
+        return sum;
     } else if (function_name == "wellblech") {
         numtype wobble = 16.0f;
         numtype r = 0;
