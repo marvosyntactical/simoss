@@ -22,8 +22,8 @@ using namespace std;
 #define EULER 2.71828
 
 // OBJECTIVE FUNCTION SETUP
-const char* function_name = "salomon"; // NOTE: ADJUSTABLE OBJECTIVE PARAMETER
-static const int DIMS = 20; // NOTE: ADJUSTABLE OBJECTIVE PARAMETER
+const char* function_name = "griewank"; // NOTE: ADJUSTABLE OBJECTIVE PARAMETER
+static const int DIMS = 100; // NOTE: ADJUSTABLE OBJECTIVE PARAMETER
 
 static const bool VISUALIZE = false;
 
@@ -155,7 +155,7 @@ int main( int argc, char** argv )
   if (argc > 1) {
       update_type = argv[1];
   } else {
-      update_type = "pso"; // pso, cbo, cbs, swarm_grad
+      update_type = "swarm_grad"; // pso, cbo, cbs, swarm_grad
   }
 
   float inertia; // initialize always even though CBO does not use inertia weight

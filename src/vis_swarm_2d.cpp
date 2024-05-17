@@ -709,7 +709,7 @@ int viz_optim(int argc, char** argv)
   if (update_type == "swarm_grad") {
 	  inertia = 0.0; // NOTE: ADJUSTABLE PARAMETER
 	  c1 = 4.0; // NOTE: ADJUSTABLE PARAMETER
-	  c2 = 0.9; // NOTE: ADJUSTABLE PARAMETER
+	  c2 = 0.81; // NOTE: ADJUSTABLE PARAMETER
 	  K = 1; // swarm_grad reference particles
   } else if (update_type == "cbo") {
 	  // CBO settings for "alpine0"

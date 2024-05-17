@@ -222,7 +222,7 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 		    // upper_bounds_init_dist and lower_bounds_init_dist thresholds on difference (~= gradient clipping)
 		    real upper_thresh = 400.0;
 		    real lower_thresh = -400; // e.g. lower_thresh = (- upper_bounds_init_dist) or = 0.0
-		    real mult = 0.00; // update i by this much if its better
+		    real mult = 0.10; // update i by this much if its better
 		    for (int i = 0; i < N; i++) {
 			// particle i chooses K comparison particles j=1,...,K
                         //
@@ -586,7 +586,7 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 		    // // cout<< "Opt: Updating positions ..." << endl;
 		    update_pos();
 		    t += 1;
-		    cout<< "Opt: Step \t" << t << endl;
+		    // cout<< "Opt: Step \t" << t << endl;
 		}
 
 		bool is_converged() {
