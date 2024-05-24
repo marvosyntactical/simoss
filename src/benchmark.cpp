@@ -22,14 +22,14 @@ using namespace std;
 #define EULER 2.71828
 
 // OBJECTIVE FUNCTION SETUP
-const char* function_name = "griewank"; // NOTE: ADJUSTABLE OBJECTIVE PARAMETER
-static const int DIMS = 100; // NOTE: ADJUSTABLE OBJECTIVE PARAMETER
+const char* function_name = "xsy4"; // NOTE: ADJUSTABLE OBJECTIVE PARAMETER
+static const int DIMS = 50; // NOTE: ADJUSTABLE OBJECTIVE PARAMETER
 
 static const bool VISUALIZE = false;
 
 // OPTIMIZER CONSTRUCTION (INITIALIZED LATER)
 // SWARMOPTIMIZER variables
-static const int N_PARTICLES = 25;
+static const int N_PARTICLES = 1000;
 static const int N_GROUPS = 1; // for update_type == "swarm_grad"
 
 SWARMOPTIMIZER<N_PARTICLES, DIMS, float> optimizer;
@@ -37,6 +37,27 @@ SWARMOPTIMIZER<N_PARTICLES, DIMS, float> optimizer;
 
 // contains bound (used as lower and upper in each dim) for each function
 std::map<string, float> function_bounds; 
+
+// I have to declare this??
+// void computeStandardDeviation(float* array, int N, float &stddev);
+
+void computeStandardDeviation(float* array, int N, float &stddev){
+    float sum = 0.0f, mean=0.0f, var = 0.0f;
+
+    for (int i = 0; i < N; i++) {
+        sum += array[i];
+    }
+    mean = sum/N;
+
+    for (int i = 0; i < N; i++) {
+        var += (array[i] - mean) * (array[i] - mean);
+    }
+
+    var /= N;
+    stddev = sqrt(var);
+
+    delete[] array;
+}
 
 
 template <int D, typename numtype>
@@ -71,6 +92,23 @@ numtype objective (numtype X[D]) {
         squares = sqrt(squares);
         sum += 0.1*squares - cos(2*3.14159*squares);
         return sum;
+    } else if (function_name == "xsy4") {
+        numtype sines = 0;
+        numtype sinesqrts = 0;
+        numtype squares = 0;
+
+        for (int d = 0; d < D; d++) {
+            sines += pow(sin(X[d]), 2);
+            squares += pow(X[d], 2);
+            sinesqrts += pow(sin(sqrt(sqrt(pow(X[d],2)))), 2);
+        }
+        return (sines - exp(-squares)) * exp(-sinesqrts);
+    } else if (function_name == "rosenbrock") {
+        numtype sum = 0;
+        for (int d = 0; d < D; d++) {
+            sum += X[d] * X[d];
+        }
+        return 1 - cos(2 * 3.14159*sqrt(sum)) + 0.1 * sqrt(sum);
     } else if (function_name == "griewank") {
         numtype sum = 1;
         numtype summands = 0;
@@ -134,8 +172,8 @@ int main( int argc, char** argv )
   float lower_bounds_init_dist[DIMS]; // uniform init dist lower bounds
   float upper_bounds_init_dist[DIMS]; // uniform init dist upper bounds
   for (int d = 0; d < DIMS; d++) {
-	  lower_bounds_init_dist[d] = -35;
-	  upper_bounds_init_dist[d] = -40;
+	  lower_bounds_init_dist[d] = -100;
+	  upper_bounds_init_dist[d] = 100;
   }
 
   float lower_bounds[DIMS]; // uniform init dist lower bounds
@@ -155,7 +193,7 @@ int main( int argc, char** argv )
   if (argc > 1) {
       update_type = argv[1];
   } else {
-      update_type = "swarm_grad"; // pso, cbo, cbs, swarm_grad
+      update_type = "pso"; // pso, cbo, cbs, swarm_grad
   }
 
   float inertia; // initialize always even though CBO does not use inertia weight
@@ -207,59 +245,90 @@ int main( int argc, char** argv )
   if (argc > 5) {
 	  K = stof(argv[5]); // swarm_grad number of reference particles
   }
+  
+  // DO N RUNS AND AVERAGE OVER THEM
+  int N_RUNS = 20;
+
+  // MEANS
+  float avg_optimum_value;
+  int avg_steps_taken;
+
+  // STANDARD DEVIATIONS
+  float* optimum_vals = new float[N_RUNS];
+  float* steps_takens = new float[N_RUNS];
+  float stddev_val = 0.0f;
+  float stddev_steps = 0.0f;
+
+  for (int i = 0; i < N_RUNS; i++) {
+      cout << "Run " << i << endl;
+
+      // initialize the optimizer
+      // cout << "initializing optimizer ..." << endl;
+      optimizer.init(
+          lower_bounds_init_dist,
+          upper_bounds_init_dist,
+          lower_bounds,
+          upper_bounds,
+          c1,
+          c2,
+          inertia,
+          temp,
+          initialization,
+          update_type,
+          "plateau",
+          2000,
+          N_GROUPS,
+          merge_time,
+          obj,
+          K
+      );
 
 
-  // initialize the optimizer
-  // cout << "initializing optimizer ..." << endl;
-  optimizer.init(
-      lower_bounds_init_dist,
-      upper_bounds_init_dist,
-      lower_bounds,
-      upper_bounds,
-      c1,
-      c2,
-      inertia,
-      temp,
-      initialization,
-      update_type,
-      "plateau",
-      2000,
-      N_GROUPS,
-      merge_time,
-      obj,
-      K
-  );
+      // output variables
+      float* found_optimum;
+      float optimum_value;
+      int steps_taken;
 
+      if (VISUALIZE && DIMS == 2) {
+        // see vis_swarm_2d.cpp
+      } else {
+        // run optimization (bind triple outputs to output variables)
+        // cout << "running optimization ..." << endl;
+        tie(found_optimum, optimum_value, steps_taken) = optimizer.run();
+      }
 
-  // output variables
-  float* found_optimum;
-  float optimum_value;
-  int steps_taken;
+      // UPDATE MEANS
+      avg_optimum_value += optimum_value/N_RUNS;
+      avg_steps_taken += steps_taken/N_RUNS;
 
-  if (VISUALIZE && DIMS == 2) {
-    // see vis_swarm_2d.cpp
-  } else {
-    // run optimization (bind triple outputs to output variables)
-    // cout << "running optimization ..." << endl;
-    tie(found_optimum, optimum_value, steps_taken) = optimizer.run();
+      // UPDATE STDS
+      optimum_vals[i] = optimum_value;
+      steps_takens[i] = steps_taken;
+
   }
+
+  // compute standard deviations
+  computeStandardDeviation(optimum_vals, N_RUNS, stddev_val);
+  computeStandardDeviation(steps_takens, N_RUNS, stddev_steps);
 
   /* print out optimum position vector: */
   cout << endl << "=======================================" << endl << endl;
   cout << "Optimizer '" << update_type << "'" << endl;
   cout << "(c1 = " << c1 << ", c2 = " << c2  << ", inertia = " << inertia << ", K = " << K << ")"  << endl << endl;
-  cout << "Optimizing '"<< function_name << "' (DIMS=" << DIMS << "):" << endl << endl;
-  cout << "Found optimum: ";
-  cout << "[ ";
-  for (int d = 0; d < DIMS-1; d++) {
-	  cout << found_optimum[d] << ", ";
-  }
-  cout << found_optimum[DIMS-1] << "]" << endl << endl;
+  cout << "Optimizing '"<< function_name << "' (DIMS=" << DIMS << ") Over " << N_RUNS << " runs:" << endl << endl;
+
+  // cout << "Found optimum: ";
+  // cout << "[ ";
+  // for (int d = 0; d < DIMS-1; d++) {
+  // 	  cout << found_optimum[d] << ", ";
+  // }
+  // cout << found_optimum[DIMS-1] << "]" << endl << endl;
+  //
   // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   /* print out function value at optimum */
-  cout << "With Norm " << norm2<DIMS, float>(found_optimum) << endl;
-  cout << "Achieving the function value " << optimum_value << endl;
-  cout << "After " << steps_taken << " steps. " << endl;
+  // cout << "With Norm " << norm2<DIMS, float>(found_optimum) << endl;
+  cout << "Achieving the average function value " << avg_optimum_value << " (+- " << stddev_val << " )" << endl;
+  cout << "After an average number of steps of  " << avg_steps_taken << " (+- " << stddev_steps << " ). " << endl;
   cout << endl << "=======================================" << endl;
 
   return 0;

@@ -649,7 +649,7 @@ void init_glut() {
 
 int viz_optim(int argc, char** argv)
 {
-  string update_type = "swarm_grad"; // cbs, cbo, swarm_grad, pso
+  string update_type = "pso"; // cbs, cbo, swarm_grad, pso
   glutInit(&argc, argv);
   glutInitDisplayMode( GLUT_DOUBLE | GLUT_DEPTH | GLUT_RGBA );
   glutInitWindowSize ( screenWidth, screenHeight );
@@ -708,8 +708,8 @@ int viz_optim(int argc, char** argv)
   // SWARM_GRAD settings for "alpine0"
   if (update_type == "swarm_grad") {
 	  inertia = 0.0; // NOTE: ADJUSTABLE PARAMETER
-	  c1 = 4.0; // NOTE: ADJUSTABLE PARAMETER
-	  c2 = 0.81; // NOTE: ADJUSTABLE PARAMETER
+	  c1 = 4.1; // NOTE: ADJUSTABLE PARAMETER
+	  c2 = 0.8; // NOTE: ADJUSTABLE PARAMETER
 	  K = 1; // swarm_grad reference particles
   } else if (update_type == "cbo") {
 	  // CBO settings for "alpine0"

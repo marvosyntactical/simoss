@@ -114,12 +114,10 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 			    for (int i = 0; i < N; i++) {
 			        // // cout<< "Opt: Initializing particle " <<  i << "... " << endl;
 				x[i][dim] = init_dist_d(generator);
+                                // cout<< "Particle " << i << " @dim " << dim << " is @ " << x[i][dim] << endl;
 			    }
 			}
-			for (int i = 0; i < N; i++) {
-				// // cout<< "Opt: Getting function value of particle " <<  i << "... " << endl;
-			    z[i] = this->objective(x[i]);
-			}
+			
 		    } else if (initialization == "center") {
 			// spawn particles randomly on unit sphere around center
 			// TODO
@@ -129,6 +127,10 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 			// cout<< "Allowed values of initialization are 'random', 'center'. Got " << initialization << endl;
 			exit(1);
 		    }
+                    for (int i = 0; i < N; i++) {
+                        // // cout<< "Opt: Getting function value of particle " <<  i << "... " << endl;
+                        z[i] = this->objective(x[i]);
+                    }
 		}
 
 		// update personal bests and global best
@@ -222,7 +224,7 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 		    // upper_bounds_init_dist and lower_bounds_init_dist thresholds on difference (~= gradient clipping)
 		    real upper_thresh = 400.0;
 		    real lower_thresh = -400; // e.g. lower_thresh = (- upper_bounds_init_dist) or = 0.0
-		    real mult = 0.10; // update i by this much if its better
+		    real mult = 0.1; // update i by this much if its better
 		    for (int i = 0; i < N; i++) {
 			// particle i chooses K comparison particles j=1,...,K
                         //
@@ -243,7 +245,7 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 					    j = (i + k + 1) % group_size + int(i/group_size);
 					} else {
 					    if (t == merge_time && i == 0) {
-						cout<< "MERGING SUBSWARMS at t=" << t << endl;
+						// cout<< "MERGING SUBSWARMS at t=" << t << endl;
 					    }
 					    j = (i + k + 1) % N;
 					}
@@ -281,11 +283,15 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 			    r1 = this->uniform_dist(generator);
 			    r2 = this->normal_dist(generator);
 
+                            real v_attract = 0;
 			    for (int k=0; k < K; k++) {
-				    // grad ~= (f(x+h)-f(x))/|h| // with h = x[j]-x[i]
+				    // grad ~= (f(x+h)-f(x))/|h| // with h := x[j]-x[i]
 				    // go along average sampled "gradient" 
+                                    //
+                                    // \sum_k (z[i]-z[J[k]]) * (x[J[k]][dim] - x[i][dim])
                                     real diff = x[J[k]][dim] - x[i][dim];
-				    v_attract = c1 * r1 * (1/K) * diff * (Diff[k] / hnorm);
+				    v_attract += c1 * r1 * (1/K) * diff * (Diff[k] / hnorm);
+				    // v_attract = c1 * r1 * (1/K) * diff * Diff[k];
 			    }
 
 
@@ -306,7 +312,7 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 
 			    // update
 			    v[i][dim] = v_i_d;
-			    x[i][dim] = clamp_pos(x[i][dim] + v_i_d, dim);
+			    x[i][dim] = clamp_pos(x_i_d + v_i_d, dim);
 			}
 		    }
 		}
@@ -474,6 +480,9 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 			int K
 		    ) {
 
+		    // optimizer type: pso, cbo, swarm_grad?
+		    this->update_type = update_type;
+
 		    // for swarm grad:
 		    if (update_type == "swarm_grad") {
 			uniform_int_distribution<int> discrete_dist(0, N-1);
@@ -487,9 +496,6 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 		    this->inertia = inertia;
 		    this->c1 = c1;
 		    this->c2 = c2;
-
-		    // optimizer type: pso, cbo, swarm_grad?
-		    this->update_type = update_type;
 
 		    // swarm grad
 		    this->n_groups = n_groups;
