@@ -39,7 +39,7 @@ using namespace std;
 
 #define KEY_ESC 27
 
-const char* funcName = "wellblech"; // NOTE: ADJUSTABLE PARAMETER
+const char* funcName = "unknown"; // NOTE: ADJUSTABLE PARAMETER
 
 // global variables for handling the arcball
 
@@ -86,15 +86,15 @@ static const bool VIZ = true; // TODO implement
 static const int DIMS = 2; // TODO make 1-D vis possible
 
 // const GLfloat grid_size = 20.0f; // NOTE: ADJUSTABLE PARAMETER
-const GLfloat grid_size_x = 200.0f; // NOTE: ADJUSTABLE PARAMETER
-const GLfloat grid_size_y = 200.0f; // NOTE: ADJUSTABLE PARAMETER
+const GLfloat grid_size_x = 100.0f; // NOTE: ADJUSTABLE PARAMETER
+const GLfloat grid_size_y = 100.0f; // NOTE: ADJUSTABLE PARAMETER
 const GLfloat Xmin[] = {-grid_size_x,0.0f, 0.0f, 0.0f};
 const GLfloat Xmax[] = {grid_size_x, 0.0f, 0.0f, 0.0f};
 const GLfloat Ymin[] = {0.0f, -grid_size_y, 0.0f, 0.0f};
 const GLfloat Ymax[] = {0.0f, grid_size_y, 0.0f, 0.0f};
 
-static const GLfloat tile_width_x = 4.0; // NOTE: ADJUSTABLE PARAMETER
-static const GLfloat tile_width_y = 4.0; // NOTE: ADJUSTABLE PARAMETER
+static const GLfloat tile_width_x = 1.0; // NOTE: ADJUSTABLE PARAMETER
+static const GLfloat tile_width_y = 1.0; // NOTE: ADJUSTABLE PARAMETER
 
 const int num_tiles_x = (Xmax[0] - Xmin[0])/tile_width_x;
 const int num_tiles_y = (Ymax[1] - Ymin[1])/tile_width_y;
@@ -110,7 +110,7 @@ GLfloat y;
 /* end function plot parameter setup */
 
 // SWARMOPTIMIZER variables
-static const int N_PARTICLES = 200;
+static const int N_PARTICLES = 100;
 static const int N_GROUPS = 1;
 GLfloat prtcl_sphere_color[N_GROUPS][4];
 
@@ -170,9 +170,26 @@ GLfloat objective (GLfloat X[DIMS]) {
         GLfloat x_comp = x*x - 10 * cos(2.0 * M_PI * x) + 10;
         GLfloat y_comp = y*y - 10 * cos(2.0 * M_PI * y) + 10;
         return x_comp + y_comp;
+    } else if (function_name == "unknown") {
+        GLfloat norm = 0;
+        for (int d = 0; d < D; d++) {
+            sum += X[d] * X[d];
+        }
+        norm = sqrt(norm);
+        return 1 - cos(2 * 3.14159*norm) + 0.1 * norm;
+    } else if (funcName == "griewank") {
+        GLfloat sum = 1;
+        GLfloat summands = x*x + y*y;
+        GLfloat factors = cos(x) * cos(y/sqrt(2));
+        summands /= 4000;
+        sum += summands + factors;
+        return sum;
     } else if (funcName == "wellblech") {
         GLfloat wobble = 16.0f;
         return wobble*sin(x*0.05) - wobble*cos(y*0.1) + 0.004*pow(y+50, 2) + 0.0000001*pow(x+50, 4) - 0.001*pow(x, 2);
+    } else if (funcName == "test1") {
+        GLfloat wobble = 16.0f;
+        return wobble*sin(x*0.07) - wobble*cos(y*0.1) + 0.004*pow(y+50, 2) + 0.00000005*pow(x+50, 4) - 0.001*pow(x, 2) -0.01*(x+y) + 3*wobble;
     } else if (funcName == "wobble") {
         GLfloat wobble = 8.0f;
         GLfloat r = wobble*sin(x) - wobble*cos(y) + exp(y) + pow(0.2*(x-5.0), 2.0); // -pow(0.05*x, 6.0);
@@ -500,7 +517,7 @@ void draw_coordinate_system(float unit)
 void draw_particles()
 {
   GLUquadricObj *qobj = gluNewQuadric();
-  float sphere_radius = 4.0;
+  float sphere_radius = 2.0;
 
   for (int i = 0; i < N_PARTICLES; i++) {
       int g = prtcl_group(i);
@@ -649,7 +666,7 @@ void init_glut() {
 
 int viz_optim(int argc, char** argv)
 {
-  string update_type = "pso"; // cbs, cbo, swarm_grad, pso
+  string update_type = "swarm_grad"; // cbs, cbo, swarm_grad, pso
   glutInit(&argc, argv);
   glutInitDisplayMode( GLUT_DOUBLE | GLUT_DEPTH | GLUT_RGBA );
   glutInitWindowSize ( screenWidth, screenHeight );
@@ -692,7 +709,7 @@ int viz_optim(int argc, char** argv)
 
 
   // initialize SWARMOPTIMIZER
-  float init_range = 0.4;
+  float init_range = 0.2;
   float lower_bounds_init_dist[DIMS] = {Xmax[0], Ymax[1]};
   float upper_bounds_init_dist[DIMS] = {Xmax[0] - (Xmax[0]-Xmin[0])*init_range, Ymax[1] - (Ymax[1]-Ymin[1])*init_range};
 
@@ -704,13 +721,14 @@ int viz_optim(int argc, char** argv)
   float c1, c2, inertia; // CBO does not use inertia weight
   inertia = 0.0;
   float temp = 30.0;
+  float beta = 0.99;
 
   // SWARM_GRAD settings for "alpine0"
   if (update_type == "swarm_grad") {
-	  inertia = 0.0; // NOTE: ADJUSTABLE PARAMETER
-	  c1 = 4.1; // NOTE: ADJUSTABLE PARAMETER
-	  c2 = 0.8; // NOTE: ADJUSTABLE PARAMETER
-	  K = 1; // swarm_grad reference particles
+	  inertia = 0.9; // NOTE: ADJUSTABLE PARAMETER
+	  c1 = 4.0; // NOTE: ADJUSTABLE PARAMETER
+	  c2 = 0.5; // NOTE: ADJUSTABLE PARAMETER
+	  K = 5; // swarm_grad reference particles
   } else if (update_type == "cbo") {
 	  // CBO settings for "alpine0"
 	  c1 = 0.75; // NOTE: ADJUSTABLE PARAMETER
@@ -739,6 +757,7 @@ int viz_optim(int argc, char** argv)
       c1,
       c2,
       inertia,
+      beta,
       temp,
       initialization,
       update_type,

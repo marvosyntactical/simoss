@@ -22,14 +22,14 @@ using namespace std;
 #define EULER 2.71828
 
 // OBJECTIVE FUNCTION SETUP
-const char* function_name = "xsy4"; // NOTE: ADJUSTABLE OBJECTIVE PARAMETER
+const char* function_name = "ackley"; // NOTE: ADJUSTABLE OBJECTIVE PARAMETER
 static const int DIMS = 50; // NOTE: ADJUSTABLE OBJECTIVE PARAMETER
 
 static const bool VISUALIZE = false;
 
 // OPTIMIZER CONSTRUCTION (INITIALIZED LATER)
 // SWARMOPTIMIZER variables
-static const int N_PARTICLES = 1000;
+static const int N_PARTICLES = 100;
 static const int N_GROUPS = 1; // for update_type == "swarm_grad"
 
 SWARMOPTIMIZER<N_PARTICLES, DIMS, float> optimizer;
@@ -75,14 +75,14 @@ template <int D, typename numtype>
 numtype objective (numtype X[D]) {
     if (function_name == "rastrigin") {
 	numtype sum = 0;
-	numtype C = 0;
+        numtype A = 10;
 	for (int d = 0; d < D; d++) {
 		// cout << "Fun: Getting vector value in dim " << d << "... " << endl;
 
 		numtype Xd = X[d];
-		sum += Xd*Xd - 10*cos(2*PI*Xd) + 10;
+		sum += Xd*Xd - A*cos(2*PI*Xd) + 10;
 	}
-        return 1/10*D+sum + C;
+        return A*D+sum;
     } else if (function_name == "salomon") {
         numtype sum = 1;
         numtype squares = 0;
@@ -103,7 +103,7 @@ numtype objective (numtype X[D]) {
             sinesqrts += pow(sin(sqrt(sqrt(pow(X[d],2)))), 2);
         }
         return (sines - exp(-squares)) * exp(-sinesqrts);
-    } else if (function_name == "rosenbrock") {
+    } else if (function_name == "unknown") {
         numtype sum = 0;
         for (int d = 0; d < D; d++) {
             sum += X[d] * X[d];
@@ -115,10 +115,9 @@ numtype objective (numtype X[D]) {
         numtype factors = 1;
 	for (int d = 0; d < D; d++) {
             summands += pow(X[d],2);
-            factors *= cos(X[d]/(d+1));
+            factors *= cos(X[d]/sqrt(d+1));
         }
         summands /= 4000;
-
         sum += summands + factors;
         return sum;
     } else if (function_name == "wellblech") {
@@ -172,15 +171,15 @@ int main( int argc, char** argv )
   float lower_bounds_init_dist[DIMS]; // uniform init dist lower bounds
   float upper_bounds_init_dist[DIMS]; // uniform init dist upper bounds
   for (int d = 0; d < DIMS; d++) {
-	  lower_bounds_init_dist[d] = -100;
-	  upper_bounds_init_dist[d] = 100;
+	  lower_bounds_init_dist[d] = 80;
+	  upper_bounds_init_dist[d] = 90;
   }
 
   float lower_bounds[DIMS]; // uniform init dist lower bounds
   float upper_bounds[DIMS]; // uniform init dist upper bounds
   for (int d=0; d < DIMS; d++) {
 	  // float bound = function_bounds[function_name];
-	  float bound = 51.2;
+	  float bound = 100;
 	  lower_bounds[d] = -bound;
 	  upper_bounds[d] = bound;
   }
@@ -193,37 +192,39 @@ int main( int argc, char** argv )
   if (argc > 1) {
       update_type = argv[1];
   } else {
-      update_type = "pso"; // pso, cbo, cbs, swarm_grad
+      update_type = "swarm_grad"; // pso, cbo, cbs, swarm_grad
   }
 
   float inertia; // initialize always even though CBO does not use inertia weight
   float c1, c2; // correspond to lambda, sigma in case of CBO
   int K = 1; // swarm_grad reference particles
-  float temp = 1;
+  float temp = 30;
+  float beta = 0.99;
 
   function<float (float*)> obj = objective<DIMS, float>;
 
   // different hyperparameter settings for different optimizers
   if (update_type == "swarm_grad") {
     // SWARM_GRAD settings for "alpine0"
-    // inertia = 0.1; // NOTE: ADJUSTABLE PARAMETER
+    inertia = 0.7; // NOTE: ADJUSTABLE PARAMETER
     c1 = 4.0; // NOTE: ADJUSTABLE PARAMETER
     c2 = 0.8; // NOTE: ADJUSTABLE PARAMETER
-    inertia = 0.1;
+    beta = 0.9;
     K = 1;
+
   } else if (update_type == "cbo") {
 
     // CBO settings for "alpine0"
-    c1 = 0.4; // NOTE: ADJUSTABLE PARAMETER
+    c1 = 1.0; // NOTE: ADJUSTABLE PARAMETER
     c2 = 0.3; // NOTE: ADJUSTABLE PARAMETER
 
   } else if (update_type == "pso") {
   
     // PSO settings for "alpine0"
     // In most works, c1 = c2 =: c (= 2)
-    inertia = 0.3; // NOTE: ADJUSTABLE PARAMETER
-    c1 = 2.0; // NOTE: ADJUSTABLE PARAMETER
-    c2 = 2.0; // NOTE: ADJUSTABLE PARAMETER
+    inertia = 0.1; // NOTE: ADJUSTABLE PARAMETER
+    c1 = 1.0; // NOTE: ADJUSTABLE PARAMETER
+    c2 = 1.0; // NOTE: ADJUSTABLE PARAMETER
   } else if (update_type == "cbs") {
     temp = 30;
     // c2 = 1.0; // optimization mode
@@ -259,11 +260,12 @@ int main( int argc, char** argv )
   float stddev_val = 0.0f;
   float stddev_steps = 0.0f;
 
+  cout << "Benchmarking " << update_type << " on " << function_name << endl;
+
   for (int i = 0; i < N_RUNS; i++) {
       cout << "Run " << i << endl;
 
       // initialize the optimizer
-      // cout << "initializing optimizer ..." << endl;
       optimizer.init(
           lower_bounds_init_dist,
           upper_bounds_init_dist,
@@ -272,17 +274,17 @@ int main( int argc, char** argv )
           c1,
           c2,
           inertia,
+          0.99,
           temp,
           initialization,
           update_type,
-          "plateau",
-          2000,
+          "max_steps",
+          4000,
           N_GROUPS,
           merge_time,
           obj,
           K
       );
-
 
       // output variables
       float* found_optimum;
@@ -290,12 +292,13 @@ int main( int argc, char** argv )
       int steps_taken;
 
       if (VISUALIZE && DIMS == 2) {
-        // see vis_swarm_2d.cpp
+        // TODO NOTE see vis_swarm_2d.cpp
       } else {
         // run optimization (bind triple outputs to output variables)
         // cout << "running optimization ..." << endl;
         tie(found_optimum, optimum_value, steps_taken) = optimizer.run();
       }
+      cout << "Optimum " << optimum_value << endl;
 
       // UPDATE MEANS
       avg_optimum_value += optimum_value/N_RUNS;
@@ -314,8 +317,8 @@ int main( int argc, char** argv )
   /* print out optimum position vector: */
   cout << endl << "=======================================" << endl << endl;
   cout << "Optimizer '" << update_type << "'" << endl;
-  cout << "(c1 = " << c1 << ", c2 = " << c2  << ", inertia = " << inertia << ", K = " << K << ")"  << endl << endl;
-  cout << "Optimizing '"<< function_name << "' (DIMS=" << DIMS << ") Over " << N_RUNS << " runs:" << endl << endl;
+  cout << "(c1 = " << c1 << ", c2 = " << c2  << ", inertia = " << inertia << ", K = " << K << ", beta = " << beta << ")"  << endl << endl;
+  cout << "Optimized '"<< function_name << "' (DIMS=" << DIMS << ") Over " << N_RUNS << " runs:" << endl << endl;
 
   // cout << "Found optimum: ";
   // cout << "[ ";
