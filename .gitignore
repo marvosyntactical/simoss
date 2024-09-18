@@ -1,0 +1,3 @@
+src/*.o
+src/Bench
+src/Vis2D
