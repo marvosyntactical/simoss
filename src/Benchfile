@@ -31,7 +31,7 @@ run: $(MYEXECUTABLE)
 	$(CC) $(CFLAGS) $<
 
 clean:
-	rm -f $(MYOBJECTS) $(MYEXECUTABLE) *~
+	rm -f $(MYOBJECTS) *~ # $(MYEXECUTABLE) *~
 
 
 .PHONY: run clean

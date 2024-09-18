@@ -82,6 +82,7 @@ for _ in range(N_RUNS):
     res += [best_fitness]
 
 res = np.array(res)
+
 print("Mean: ", res.mean())
 print("STD: ", res.std())
 

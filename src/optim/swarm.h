@@ -49,6 +49,7 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 		real criterion_value;
 		bool converged;
 		int plateau_steps;
+                bool do_momentum;
 
 		// SWARMGRAD:
 		int n_groups;
@@ -65,6 +66,7 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 		real distance; // distance from X_i to current softmax
 		real softmax_normalizer;
 		real temp;
+                real dt;
 
 		// CBS:
 		real c_numerator;
@@ -209,21 +211,31 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 
 			    x_i_d = x[i][dim]; // only access particle position once
 
-			    v_inertial = inertia * v[i][dim];
 			    v_personal_best = c1 * r1 * (pbests[i][dim] - x_i_d);
 			    v_global_best = c2 * r2 * (gbest[dim] - x_i_d);
 
-			    v_i_d = v_inertial + v_personal_best + v_global_best;
+			    v_i_d = v_personal_best + v_global_best;
 
-			    // // cout<< "Opt: Updating value in dim " << dim << " of particle " << i << " ..." << endl;
-			    // // cout<< "v_{t-1}[i][d] " << v[i][dim] << endl;
-			    // // cout<< "v[i][d] " << v_i_d << endl;
+                            if (do_momentum) {
+                                v_i_d = inertia * v[i][dim] + (1-inertia) * v_i_d;
+                                a_i_d = beta * a[i][dim] + (1-beta) * pow(v_i_d, 2);
 
-			    v[i][dim] = v_i_d; // update velocity
-			    // // cout<< "x[i][dim]." << endl;
-			    // // cout<< "x[i][dim] " << x[i][dim] << endl;
-			    x[i][dim] = clamp_pos(x_i_d + v_i_d, dim); // update position
-			    // // cout<< "Opt: Updated value." << endl;
+                                real mthat = v_i_d/(1-pow(inertia, t+1));
+                                real vthat = a_i_d/(1-pow(beta, t+1));
+
+                                real eps = 1e-8;
+                                real update = c1 * v_i_d * (mthat / (sqrt(vthat) + eps));
+
+                                a[i][dim] = a_i_d;
+                                v[i][dim] = v_i_d;
+                                x[i][dim] = clamp_pos(x[i][dim] + update, dim);
+                            } else {
+                                v_inertial = inertia * v[i][dim];
+                                v_i_d += v_inertial;
+                                v[i][dim] = v_i_d;
+                                x[i][dim] = clamp_pos(x[i][dim] + v_i_d, dim);
+                            }
+
 			}
 		    }
 		}
@@ -257,31 +269,31 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 			real* Diff = new real[K];
 
 			for (int k = 0; k < K; k++) {
-				int j = i;
-				if (not sub_swarms) {
-					j = PERM[k][i];
-				} else {
-					if (t < merge_time) {
-					    j = (i + k + 1) % group_size + int(i/group_size);
-					} else {
-					    if (t == merge_time && i == 0) {
-						// cout<< "MERGING SUBSWARMS at t=" << t << endl;
-					    }
-					    j = (i + k + 1) % N;
-					}
-				}
+			    int j = i;
+			    if (not sub_swarms) {
+			    	j = PERM[k][i];
+			    } else {
+			    	if (t < merge_time) {
+			    	    j = (i + k + 1) % group_size + int(i/group_size);
+			    	} else {
+			    	    if (t == merge_time && i == 0) {
+			    		// cout<< "MERGING SUBSWARMS at t=" << t << endl;
+			    	    }
+			    	    j = (i + k + 1) % N;
+			    	}
+			    }
 
-				J[k] = j;
+			    J[k] = j;
 
-				// calculate cost difference with comparison particle j
-				real dk = z[i] - z[j];
-			        // cout << "dk: \t" << dk << endl;
-				real dk_clip = max(min(dk, upper_thresh), lower_thresh);
-				if (dk < 0) {
-				    // like leaky relu: less steep slope
-				    dk_clip *= mult;
-				}
-				Diff[k] = dk_clip;
+			    // calculate cost difference with comparison particle j
+			    real dk = z[i] - z[j];
+			    // cout << "dk: \t" << dk << endl;
+			    real dk_clip = max(min(dk, upper_thresh), lower_thresh);
+			    if (dk < 0) {
+			        // like leaky relu: less steep slope
+			        dk_clip *= mult;
+			    }
+			    Diff[k] = dk_clip;
 			}
                         
                         // calculate help vector norm (vector pointing from xi to xJk)
@@ -289,11 +301,11 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
                         vector<real> hnorms(K, 0);
                         for (int k=0; k < K; k++) {
                             for (int dim=0; dim < D; dim++) {
-				    // cout << "Diff[k]: \t" << Diff[k] << endl;
-				    // cout << "J[k]: \t" << J[k] << endl;
-				    // cout << "i: \t" << i << endl;
+				// cout << "Diff[k]: \t" << Diff[k] << endl;
+				// cout << "J[k]: \t" << J[k] << endl;
+				// cout << "i: \t" << i << endl;
 
-				    hnorms[k] = hnorms[k] + pow(x[J[k]][dim] - x[i][dim], 2.0);
+				hnorms[k] = hnorms[k] + pow(x[J[k]][dim] - x[i][dim], 2.0);
 			    }
                             hnorms[k] = sqrt(hnorms[k]); // 2-norm
                             // TODO FIXME DONT NORM FOR NOW
@@ -305,12 +317,12 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 			    r1 = this->uniform_dist(generator);
 			    r2 = this->normal_dist(generator);
 
-                real v_attract = 0;
+                            real v_attract = 0;
 			    for (int k=0; k < K; k++) {
-				    // grad ~= (f(x+h)-f(x))/|h| // with h := x[j]-x[i]
-				    // go along average sampled "gradient"
-                    v_attract += (x[J[k]][dim] - x[i][dim]) * (Diff[k] / hnorms[k]);
-				    // v_attract = c1 * r1 * (1/K) * diff * Diff[k];
+				// grad ~= (f(x+h)-f(x))/|h| // with h := x[j]-x[i]
+				// go along average sampled "gradient"
+                                v_attract += (x[J[k]][dim] - x[i][dim]) * (Diff[k] / hnorms[k]);
+				// v_attract = c1 * r1 * (1/K) * diff * Diff[k];
 			    }
 
 			    x_i_d = x[i][dim];
@@ -327,25 +339,25 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 			    // cout << "v_diffuse: \t" << v_diffuse << endl;
 
 			    // v_i_d = v_inertial + v_attract + v_diffuse;
-                v_i_d = v_attract;
+                            v_i_d = v_attract;
 
-                // ADAM-like
-                v_i_d = inertia * v[i][dim] + (1-inertia) * v_i_d;
-                a_i_d = beta * a[i][dim] + (1-beta) * pow(v_i_d, 2);
+                            // ADAM-like
+                            v_i_d = inertia * v[i][dim] + (1-inertia) * v_i_d;
+                            a_i_d = beta * a[i][dim] + (1-beta) * pow(v_i_d, 2);
 
 
-                real mthat = v_i_d/(1-pow(inertia, t+1));
-                real vthat = a_i_d/(1-pow(beta, t+1));
+                            real mthat = v_i_d/(1-pow(inertia, t+1));
+                            real vthat = a_i_d/(1-pow(beta, t+1));
 
-                real eps = 1e-8;
-                real update = lr * c1*r1/K * (mthat / (sqrt(vthat) + eps)) + v_diffuse;
+                            real eps = 1e-8;
+                            real update = lr * c1*r1/K * (mthat / (sqrt(vthat) + eps)) + v_diffuse;
 
-                // update pos, vel, acc
-                a[i][dim] = a_i_d;
-			    v[i][dim] = v_i_d;
-			    x[i][dim] = clamp_pos(x_i_d + update, dim);
-			}
-		    }
+                            // update pos, vel, acc
+                            a[i][dim] = a_i_d;
+                            v[i][dim] = v_i_d;
+                            x[i][dim] = clamp_pos(x_i_d + update, dim);
+                        }
+                    }
 		}
 
 		void calc_opt() {
@@ -387,19 +399,17 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 		    c_numerator = 0;
 
 		    for (int m = 0; m < D; m++) {
-			    for (int n = 0; n < D; n++) {
-				    C[m][n] = 0; // reset covariance
-				    for (int j = 0; j < N; j++) {
-					    C[m][n] += (x[j][n] - this->softmax[n]) * (x[j][m] - this->softmax[m]) * softargmax[j];
-
-				    }
-				    C[m][n] /= softmax_normalizer;
+			for (int n = 0; n < D; n++) {
+		            C[m][n] = 0; // reset covariance
+			    for (int j = 0; j < N; j++) {
+		                C[m][n] += (x[j][n] - this->softmax[n]) * (x[j][m] - this->softmax[m]) * softargmax[j];
 			    }
+			    C[m][n] /= softmax_normalizer;
+			}
 		    }
 
 		    // sqrt algorithm implemented by chatGPT
                     sqrtm(C, D, C_sqrt);
-                    
 
 		    // // diffusion term (cbs paper Eq. (2.28))
 		    // for (int j = 0; j < N; j++) {
@@ -410,8 +420,6 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 		    //     	    }
 		    //         }
 		    // }
-			
-		    
 
 		    for (int i = 0; i < N; i++) {
 
@@ -459,17 +467,34 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 
 			    x_i_d = x[i][dim]; // only access particle position once
 
-			    real dist_d = (softmax[dim] - x_i_d);
+			    real v_drift = (softmax[dim] - x_i_d); // - lambda * (X-m_t)
+                            
+                            // Diffusion: 
+			    // isotropic 
+			    // real v_diffuse = c2 * r2 * distance;
+			    // anisotropic 
+			    real v_diffuse = c2 * r2 * pow(dt,.5) * v_drift;
 
-			    real v_drift = c1 * dist_d; // - lambda * (X-m_t)
-			    // isotropic diffusion
-			    real v_diffuse = c2 * r2 * distance;
-			    // // anisotropic diffusion
-			    // real v_diffuse = c2 * r2 * dist_d;
-			    v_i_d = v_drift + v_diffuse;
+                            if (do_momentum) {
+                                v_i_d = v_drift;
+                                v_i_d = inertia * v[i][dim] + (1-inertia) * v_i_d;
+                                a_i_d = beta * a[i][dim] + (1-beta) * pow(v_i_d, 2);
 
-			    v[i][dim] = v_i_d; // update velocity
-			    x[i][dim] = clamp_pos(x[i][dim] + v_i_d, dim); // update position
+
+                                real mthat = v_i_d/(1-pow(inertia, t+1));
+                                real vthat = a_i_d/(1-pow(beta, t+1));
+
+                                real eps = 1e-8;
+                                real update = c1 * v_i_d * dt * (mthat / (sqrt(vthat) + eps)) + v_diffuse;
+
+                                a[i][dim] = a_i_d;
+                                v[i][dim] = v_i_d;
+                                x[i][dim] = clamp_pos(x[i][dim] + update, dim);
+                            } else {
+                                v_i_d = v_drift + v_diffuse;
+                                v[i][dim] = v_i_d;
+                                x[i][dim] = clamp_pos(x[i][dim] + v_i_d, dim);
+                            }
 			}
 		    }
 		}
@@ -502,6 +527,7 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 			real inertia, // HYPERPARAM
 			real beta, // HYPERPARAM
 			real temp,
+                        real dt,
 			string initialization,
 			string update_type, // ALGO: pso, cbo, swarm_grad?
 			string convergence_criterion,
@@ -509,7 +535,8 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 			int n_groups,
 			int merge_time,
 			const function<real (real*)>& objective,
-			int K
+			int K,
+                        bool do_momentum
 		    ) {
 
 		    // optimizer type: pso, cbo, swarm_grad, cma_es?
@@ -526,11 +553,13 @@ class SWARMOPTIMIZER // Particle Swarm Optimization, CBO, swarmgrad
 		    }
 
                     this->lr = 1.0;
+                    this->dt = dt;
 		    this->initialization = initialization;
 		    this->c1 = c1;
 		    this->c2 = c2;
 		    this->inertia = inertia;
 		    this->beta = beta;
+                    this->do_momentum = do_momentum;
 
 		    // swarm grad
 		    this->n_groups = n_groups;

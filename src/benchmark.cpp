@@ -22,7 +22,7 @@ using namespace std;
 #define EULER 2.71828
 
 // OBJECTIVE FUNCTION SETUP
-const char* function_name = "ackley"; // NOTE: ADJUSTABLE OBJECTIVE PARAMETER
+const char* function_name = "salomon"; // NOTE: ADJUSTABLE OBJECTIVE PARAMETER
 static const int DIMS = 50; // NOTE: ADJUSTABLE OBJECTIVE PARAMETER
 
 static const bool VISUALIZE = false;
@@ -192,39 +192,41 @@ int main( int argc, char** argv )
   if (argc > 1) {
       update_type = argv[1];
   } else {
-      update_type = "swarm_grad"; // pso, cbo, cbs, swarm_grad
+      update_type = "pso"; // pso, cbo, cbs, swarm_grad
   }
 
   float inertia; // initialize always even though CBO does not use inertia weight
   float c1, c2; // correspond to lambda, sigma in case of CBO
   int K = 1; // swarm_grad reference particles
-  float temp = 30;
-  float beta = 0.99;
+  float temp = 50;
+  float beta = .9; // beta2 of adam (inertia is beta1)
+  float dt = .1;
+  bool do_momentum = true;
 
   function<float (float*)> obj = objective<DIMS, float>;
 
   // different hyperparameter settings for different optimizers
   if (update_type == "swarm_grad") {
     // SWARM_GRAD settings for "alpine0"
-    inertia = 0.7; // NOTE: ADJUSTABLE PARAMETER
     c1 = 4.0; // NOTE: ADJUSTABLE PARAMETER
     c2 = 0.8; // NOTE: ADJUSTABLE PARAMETER
-    beta = 0.9;
-    K = 1;
+    inertia = 0.7; // NOTE: ADJUSTABLE PARAMETER
+    beta = 0.9; // NOTE: ADJUSTABLE PARAMETER
+    K = 5; // NOTE: ADJUSTABLE PARAMETER
 
   } else if (update_type == "cbo") {
 
     // CBO settings for "alpine0"
     c1 = 1.0; // NOTE: ADJUSTABLE PARAMETER
-    c2 = 0.3; // NOTE: ADJUSTABLE PARAMETER
+    c2 = 0.1; // NOTE: ADJUSTABLE PARAMETER
 
   } else if (update_type == "pso") {
   
     // PSO settings for "alpine0"
     // In most works, c1 = c2 =: c (= 2)
-    inertia = 0.1; // NOTE: ADJUSTABLE PARAMETER
-    c1 = 1.0; // NOTE: ADJUSTABLE PARAMETER
-    c2 = 1.0; // NOTE: ADJUSTABLE PARAMETER
+    inertia = 0.7; // NOTE: ADJUSTABLE PARAMETER
+    c1 = 2.0; // NOTE: ADJUSTABLE PARAMETER
+    c2 = 2.0; // NOTE: ADJUSTABLE PARAMETER
   } else if (update_type == "cbs") {
     temp = 30;
     // c2 = 1.0; // optimization mode
@@ -236,19 +238,19 @@ int main( int argc, char** argv )
 
   // CLI config
   if (argc > 3) {
-	  // string to float
-	  c1 = stof(argv[2]);
-	  c2 = stof(argv[3]);
+    // string to float
+    c1 = stof(argv[2]);
+    c2 = stof(argv[3]);
   }
   if (argc > 4) {
-	  inertia = stof(argv[4]);
+    inertia = stof(argv[4]);
   }
   if (argc > 5) {
-	  K = stof(argv[5]); // swarm_grad number of reference particles
+    K = stof(argv[5]); // swarm_grad number of reference particles
   }
   
   // DO N RUNS AND AVERAGE OVER THEM
-  int N_RUNS = 20;
+  int N_RUNS = 10;
 
   // MEANS
   float avg_optimum_value;
@@ -274,8 +276,9 @@ int main( int argc, char** argv )
           c1,
           c2,
           inertia,
-          0.99,
+          beta,
           temp,
+          dt,
           initialization,
           update_type,
           "max_steps",
@@ -283,7 +286,8 @@ int main( int argc, char** argv )
           N_GROUPS,
           merge_time,
           obj,
-          K
+          K,
+          do_momentum
       );
 
       // output variables

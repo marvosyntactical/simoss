@@ -39,7 +39,7 @@ using namespace std;
 
 #define KEY_ESC 27
 
-const char* funcName = "unknown"; // NOTE: ADJUSTABLE PARAMETER
+const char* funcName = "griewank"; // NOTE: ADJUSTABLE PARAMETER
 
 // global variables for handling the arcball
 
@@ -166,16 +166,13 @@ SWARMOPTIMIZER<N_PARTICLES, DIMS, float> optimizer;
 GLfloat objective (GLfloat X[DIMS]) {
     GLfloat x = X[0];
     GLfloat y = X[1];
+    GLfloat damp = 0.05;
     if (funcName == "rastrigin") {
         GLfloat x_comp = x*x - 10 * cos(2.0 * M_PI * x) + 10;
         GLfloat y_comp = y*y - 10 * cos(2.0 * M_PI * y) + 10;
-        return x_comp + y_comp;
-    } else if (function_name == "unknown") {
-        GLfloat norm = 0;
-        for (int d = 0; d < D; d++) {
-            sum += X[d] * X[d];
-        }
-        norm = sqrt(norm);
+        return (x_comp + y_comp)* damp;
+    } else if (funcName == "unknown") {
+        GLfloat norm = sqrt(x*x+y*y);
         return 1 - cos(2 * 3.14159*norm) + 0.1 * norm;
     } else if (funcName == "griewank") {
         GLfloat sum = 1;
@@ -666,7 +663,7 @@ void init_glut() {
 
 int viz_optim(int argc, char** argv)
 {
-  string update_type = "swarm_grad"; // cbs, cbo, swarm_grad, pso
+  string update_type = "pso"; // cbs, cbo, swarm_grad, pso
   glutInit(&argc, argv);
   glutInitDisplayMode( GLUT_DOUBLE | GLUT_DEPTH | GLUT_RGBA );
   glutInitWindowSize ( screenWidth, screenHeight );
@@ -725,9 +722,10 @@ int viz_optim(int argc, char** argv)
 
   // SWARM_GRAD settings for "alpine0"
   if (update_type == "swarm_grad") {
-	  inertia = 0.9; // NOTE: ADJUSTABLE PARAMETER
+	  inertia = 0.7; // NOTE: ADJUSTABLE PARAMETER
 	  c1 = 4.0; // NOTE: ADJUSTABLE PARAMETER
 	  c2 = 0.5; // NOTE: ADJUSTABLE PARAMETER
+	  beta = 0.9; // NOTE: ADJUSTABLE PARAMETER
 	  K = 5; // swarm_grad reference particles
   } else if (update_type == "cbo") {
 	  // CBO settings for "alpine0"
